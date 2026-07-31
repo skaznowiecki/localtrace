@@ -1,0 +1,51 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/api",
+    "packages/common",
+    "packages/domain",
+    "packages/engine",
+    "packages/adapter",
+    "packages/service",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dotenvy = "0.15"
+thiserror = "2"
+anyhow = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+duckdb = { version = "1", features = ["bundled"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+opentelemetry-proto = { version = "0.32", default-features = false, features = [
+    "gen-tonic-messages",
+    "trace",
+    "logs",
+    "metrics",
+    "with-serde",
+] }
+prost = "0.14"
+bytes = "1"
+flate2 = "1"
+http = "1"
+base64 = "0.22"
+
+common = { path = "packages/common" }
+domain = { path = "packages/domain" }
+engine = { path = "packages/engine" }
+adapter = { path = "packages/adapter" }
+service = { path = "packages/service" }
+
+[workspace.metadata.dev-tools]
+cargo-watch = "8.5.3"

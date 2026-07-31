@@ -1,0 +1,8 @@
+target/
+node_modules/
+data/
+.git/
+.env
+*.db
+*.db.wal
+apps/web/dist/

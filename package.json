@@ -1,0 +1,9 @@
+{
+  "name": "local-tracer",
+  "private": true,
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev": "pnpm --filter @local-tracer/web dev",
+    "build": "pnpm --filter @local-tracer/web build"
+  }
+}

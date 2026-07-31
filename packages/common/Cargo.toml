@@ -1,0 +1,10 @@
+[package]
+name = "common"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dotenvy.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true

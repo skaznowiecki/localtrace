@@ -1,0 +1,35 @@
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricDataPoint {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub unit: Option<String>,
+    pub metric_type: i32,
+    pub aggregation_temporality: Option<i32>,
+    pub is_monotonic: Option<bool>,
+    pub metadata: Value,
+    pub service_name: String,
+    pub resource_attributes: Value,
+    pub resource_dropped_attributes_count: u32,
+    pub resource_schema_url: Option<String>,
+    pub scope_name: Option<String>,
+    pub scope_version: Option<String>,
+    pub scope_attributes: Value,
+    pub scope_dropped_attributes_count: u32,
+    pub scope_schema_url: Option<String>,
+    pub attributes: Value,
+    pub start_time_ns: Option<u64>,
+    pub time_ns: u64,
+    pub value_double: Option<f64>,
+    pub int_value: Option<i64>,
+    pub count: Option<u64>,
+    pub sum: Option<f64>,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub exemplars: Value,
+    pub flags: u32,
+    pub data: Value,
+}
