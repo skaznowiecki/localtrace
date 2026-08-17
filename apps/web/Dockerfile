@@ -6,6 +6,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
 
 RUN pnpm install --filter @local-tracer/web...
 

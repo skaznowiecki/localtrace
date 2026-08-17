@@ -3,15 +3,10 @@
 default:
     @just --list
 
-# Dev-only tools (installed to .cargo/bin, not used in Docker/production)
-install-dev:
-    cargo install cargo-watch --version "=8.5.3" --root .cargo
-
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
     root="{{justfile_directory()}}"
-    export PATH="$root/.cargo/bin:$PATH"
 
     db_path="${LT_DATABASE_PATH:-./data/local-tracer.db}"
     if [[ "$db_path" != /* ]]; then
@@ -53,9 +48,6 @@ dev:
         fi
     fi
 
-    if ! command -v cargo-watch >/dev/null; then
-        just install-dev
-    fi
     trap 'kill 0' EXIT
     echo "Read-only snapshot → $snapshot_path (every 5s)"
     (
@@ -64,16 +56,12 @@ dev:
             sleep 5
         done
     ) &
-    cargo watch -x 'run -p api' -w apps -w packages &
-    pnpm dev &
+    pnpm --filter @local-tracer/api dev &
+    pnpm --filter @local-tracer/web dev &
     wait
 
 build:
-    cargo build --workspace --release
     pnpm build
-
-test:
-    cargo test --workspace
 
 docker-up:
     docker compose up --build

@@ -137,293 +137,120 @@ export function useTracesContext() { /* useContext + guard */ }
 | Generic helper (formatting, cn) | `lib/` |
 | Truly global state | app-level provider in `routes/__root` |
 
-## Backend architecture (Rust workspace)
+## Backend stack (`apps/api`)
 
-Local Tracer is a Cargo workspace. The backend receives OTLP telemetry (traces, logs, metrics), persists it in DuckDB, and exposes a REST API for the web UI.
+- Bun + TypeScript
+- Hono
+- DuckDB via `@duckdb/node-api`
+- OTLP HTTP (`POST /v1/traces|logs|metrics`) JSON and protobuf (gzip optional)
 
-### Workspace layout
-
-```
-apps/
-  api/                  # HTTP server (Axum) — presentation layer
-  web/                  # React frontend (see Frontend stack above)
-
-packages/
-  common/               # App config, shared errors, JSON helpers
-  domain/               # Domain models + rules (no DB, no HTTP, no OTLP)
-  engine/               # Persistence — DuckDB repositories
-  adapter/              # External format adapters (OTLP today, more later)
-  service/              # Application services — one per entity, write-only for now
-```
-
-### Layer diagram
+One app, no Cargo workspace and no extra pnpm packages. Colocate by feature; each feature owns `types/`, `repositories/`, `services/`, `http/`.
 
 ```
-OTel SDK / apps
-       │  OTLP HTTP
-       ▼
-  apps/api              presentation — handlers, DTOs, HTTP status codes
-       │
-       ├── adapter::otlp   decode + map OTLP → domain types
-       │
-       ├── service::*      use cases (ingest per entity)
-       │
-       └── engine::Repositories   read queries (temporary — no read services yet)
-       │
-       ▼
-  packages/engine       DuckDB repositories
-       │
-       ▼
-  packages/domain       SpanRecord, LogRecord, etc.
+apps/api/src/
+  index.ts              boot
+  app.ts                Hono + cors + error handler
+  config.ts             LT_* env vars
+  db/                   connection queue, migrations, SQL files
+  lib/                  ids + attrs (reused by 2+ features)
+  features/
+    traces/             list GET + persist (called by ingest)
+    logs/               list-by-trace GET + persist
+    metrics/            persist only
+    catalog/            GET /api/services
+    ingest/             OTLP providers + ingest service
 ```
 
-### Data flow — ingest (write)
+### Feature anatomy (API)
+
+```
+features/traces/
+  types/            records + HTTP DTOs (no logic)
+  repositories/     SQL only
+  services/         list.ts (UI) + persist.ts (ingest)
+  http/             routes + mappers
+  index.ts          register(app) + public persist
+```
+
+**Rules**
+
+- SQL lives in `repositories/`. Services call repos, not DuckDB.
+- `http/` calls services, not repos.
+- Ingest does **not** have repositories. `features/ingest/services/ingest.ts` parses via a **provider** and calls `traces/logs/metrics` persist.
+- OTLP is a provider (`features/ingest/providers/otlp/`), not the ingest service. Future protocols get `providers/<name>/`.
+- Extract to `src/lib/` only when 2+ features use it (`ids`, `attrs`).
+- Trace summary rules (`normalize-route`, `trace-status`) live next to `traces/services/persist.ts`.
+- Import another feature only through its `index.ts`.
+
+### Data flow — ingest
 
 ```
 POST /v1/traces
-  → api/otlp.rs          parse headers, semaphore, spawn_blocking
-  → adapter::otlp        decode_body → map_traces_json/protobuf
-  → service::SpanService ingest(&[SpanRecord])
-  → engine::SpanRepository insert()
-  → DuckDB
+  → ingest/http (gzip, 429, timeout)
+  → ingest/services/ingest.ts
+  → providers/otlp (JSON or protobuf → records)
+  → traces/services/persist → traces/repositories → DuckDB
 ```
 
-### Data flow — read (temporary)
-
-Read endpoints exist in the API but there is **no read service layer yet**. Routes call `Repositories` directly until a real query use case is needed (e.g. `TraceQueryService`).
+### Data flow — read
 
 ```
 GET /api/traces
-  → api/routes.rs
-  → repos.traces.list()        # direct repo access — not through service
-  → api/mappers.rs             domain → JSON DTO
+  → traces/http → traces/services/list → traces/repositories → DuckDB
 ```
 
-### Package responsibilities
-
-| Package | Role | Depends on | Must NOT depend on |
-| --- | --- | --- | --- |
-| `common` | Config (`LT_*` env vars), `AppError`/`AppResult`, JSON helpers | — | domain, engine, adapter, service |
-| `domain` | Entities, value objects, domain rules | serde | engine, adapter, service, HTTP, OTLP |
-| `engine` | DuckDB connection, schema migrations, repositories | common, domain | adapter, service, HTTP |
-| `adapter` | Translate external protocols → domain types | domain | engine, service, common |
-| `service` | Application use cases (ingest per entity) | common, domain, engine | adapter, HTTP |
-| `api` | HTTP routing, OTLP export handlers, REST DTOs | all of the above | — (orchestrates) |
-
-### `packages/domain`
-
-Pure domain — no I/O, no framework dependencies beyond serde.
-
-```
-domain/src/
-  entities/           # SpanRecord, TraceSummary, LogRecord, MetricDataPoint, ServiceSummary
-  value_objects/      # TraceStatus
-  rules/              # ids.rs — trace/span ID normalization, is_root_parent
-```
-
-**Rules**
-
-- Put structs with identity here (`SpanRecord`, `LogRecord`, …).
-- Put domain rules here (`normalize_trace_id`, `is_root_parent`).
-- Do **not** move domain knowledge to `common` (e.g. ID normalization is telemetry-specific, not generic infra).
-- `ServiceSummary` is a read model (service name + trace count) — not the application "service layer".
-
-### `packages/engine`
-
-Persistence layer. Owns the DuckDB connection, schema migrations, and per-entity repositories.
-
-```
-engine/src/
-  storage/
-    connection.rs     # DatabaseConnection (mutex-wrapped DuckDB handle)
-    schema/           # migration runner + SQL files
-  repository/
-    mod.rs            # Repositories — bundles all repos, runs init_schema on open
-    span.rs           # SpanRepository
-    trace.rs          # TraceRepository (list, get_with_spans, rebuild_summary)
-    log.rs            # LogRepository
-    metric.rs         # MetricRepository
-    service.rs        # ServiceRepository (ServiceSummary aggregation)
-```
-
-**Entry point:** `Repositories::open(database_path)` — creates connection, runs migrations, returns all repositories.
-
-**Rules**
-
-- All SQL lives in `repository/`. No SQL in service or adapter.
-- `SpanRepository::insert` rebuilds trace summaries via `TraceRepository::rebuild_summary`.
-- Repositories are `Clone` (cheap — they share an `Arc<DatabaseConnection>`).
-
-### `packages/adapter`
-
-Translates external wire formats into domain types. **No knowledge of services, repositories, or HTTP.**
-
-```
-adapter/src/
-  lib.rs              # pub mod otlp;
-  otlp/
-    decode.rs         # gzip, content-type, payload size limits
-    error.rs          # OtlpError
-    values.rs         # OTel AnyValue / KeyValue → JSON helpers
-    mappers/
-      traces.rs       # OTLP → Vec<SpanRecord>
-      logs.rs         # OTLP → Vec<LogRecord>
-      metrics.rs      # OTLP → Vec<MetricDataPoint>
-```
-
-**Usage:** `use adapter::otlp::{decode_body, map_traces_json, OtlpError, …};`
-
-**Rules**
-
-- If a file imports `opentelemetry-proto` → it belongs in `adapter`.
-- Adapters are pure translation. No `AppError`, no `Repositories`, no `SpanService`.
-- Future protocols (e.g. another export format) get their own submodule: `adapter::foo`.
-
-### `packages/service`
-
-Application layer — **one service per entity**, write-only for now.
-
-```
-service/src/
-  span.rs             # SpanService::ingest()
-  log.rs              # LogService::ingest()
-  metric.rs           # MetricService::ingest()
-```
-
-Each service holds only its repository:
-
-```rust
-pub struct SpanService {
-    repo: SpanRepository,
-}
-
-impl SpanService {
-    pub fn ingest(&self, spans: &[SpanRecord]) -> AppResult<()> {
-        self.repo.insert(spans)
-    }
-}
-```
-
-**Rules**
-
-- One service per entity. Do not create a god-service (`TelemetryService`) that handles all entities.
-- Do **not** add list/query methods until there is a real read use case — add a dedicated query service then (e.g. `TraceQueryService`).
-- Services talk to repositories, not to adapters or HTTP.
-- If a file imports `Storage` or calls SQL → it belongs in `engine`, not `service`.
-
-### `apps/api`
-
-Presentation layer. Wires HTTP to adapter + service + repos.
-
-```
-api/src/
-  lib.rs              # Router setup
-  main.rs             # Repositories::open → AppState → serve
-  state.rs            # AppState (services + repos + config)
-  otlp.rs             # POST /v1/traces|logs|metrics
-  routes.rs           # GET /api/traces, /api/traces/{id}, /api/services, /health
-  dto.rs              # JSON response shapes
-  mappers.rs          # domain → DTO
-```
-
-**`AppState`**
-
-```rust
-pub struct AppState {
-    pub spans: Arc<SpanService>,      // OTLP trace ingest
-    pub logs: Arc<LogService>,        // OTLP log ingest
-    pub metrics: Arc<MetricService>,  // OTLP metric ingest
-    pub repos: Arc<Repositories>,    // read routes (temporary)
-    pub config: Config,
-    pub ingest_semaphore: Arc<Semaphore>,
-}
-```
-
-**OTLP ingest orchestration** (in `otlp.rs`):
-
-```rust
-let decoded = decode_body(&body, gzip, max_bytes)?;
-let records = map_traces_json(&decoded)?;
-spans.ingest(&records)?;
-```
-
-Adapter errors (`OtlpError`) and storage errors (`AppError`) are mapped to HTTP status codes in the API layer.
+DuckDB is a single writer. `db/client.ts` serializes all work through `run(fn)`.
 
 ### Where does new code go?
 
 | Task | Location |
 | --- | --- |
-| New domain type or rule | `packages/domain/src/entities/` or `rules/` |
-| New SQL / persistence | `packages/engine/src/repository/` |
-| New schema migration | `packages/engine/src/storage/schema/migrations/` |
-| New OTLP mapping | `packages/adapter/src/otlp/mappers/` |
-| New ingest use case | `packages/service/src/<entity>.rs` |
-| New read use case (future) | `packages/service/src/<entity>_query.rs` or similar |
-| New HTTP endpoint | `apps/api/src/routes.rs` + `dto.rs` + `mappers.rs` |
-| New external protocol | `packages/adapter/src/<protocol>/` |
-| App config / generic utils | `packages/common/` |
-
-### Dependency graph
-
-```
-common
-domain
-engine        → common, domain
-adapter       → domain
-service       → common, domain, engine
-api           → common, domain, engine, adapter, service
-```
-
-### Mental model (one rule)
-
-> **Adapter** translates external formats → domain.
-> **Service** executes use cases → repository.
-> **API** connects HTTP → adapter + service (+ repos for reads until query services exist).
-
-## Engine stack (`packages/engine`)
-
-- Rust + DuckDB via the official [`duckdb`](https://duckdb.org/docs/current/clients/rust) crate (`bundled` feature)
-- `storage/` owns the DB connection and schema migrations
-- `repository/` owns all SQL — one repository per table/aggregate (`SpanRepository`, `TraceRepository`, …)
-- `Repositories::open` runs migrations on startup via `storage::init_schema`
+| Trace list/detail DTO | `features/traces/types/dto.ts` |
+| Trace SQL | `features/traces/repositories/` |
+| Trace persist / summary rules | `features/traces/services/` |
+| OTLP mapping | `features/ingest/providers/otlp/` |
+| New ingest protocol | `features/ingest/providers/<name>/` |
+| HTTP route | `features/<name>/http/routes.ts` |
+| Shared id/attr helpers | `src/lib/` |
+| Schema migration | `apps/api/src/db/sql/` + register in `db/migrate.ts` |
+| App config | `src/config.ts` |
 
 ## DuckDB schema migrations
 
 Migrations are versioned SQL files applied sequentially at startup. Version is tracked in `schema_meta.version`.
 
 ```
-packages/engine/src/storage/
-  connection.rs             # DatabaseConnection
-  schema/
-    mod.rs                  # migration runner (do not put DDL here)
-    migrations/
-      spans.sql             # table + indexes
-      traces.sql
-      logs.sql
-      metrics.sql
-      002_<name>.sql        # incremental migration, etc.
+apps/api/src/db/
+  client.ts
+  migrate.ts
+  sql/
+    001_spans.sql
+    001_traces.sql
+    001_logs.sql
+    001_metrics.sql
+    002_trace_http.sql
+    003_trace_http_url.sql
+    004_trace_http_route.sql
 ```
 
 ### Rules
 
-- **One file per table** for the initial schema (`<table>.sql` with its indexes). Incremental changes use numbered files (`002_<name>.sql`, …).
-- **All DDL goes in `storage/schema/migrations/`**. Register numbered migrations in the `MIGRATIONS` slice in `storage/schema/mod.rs`.
-- **Never edit a migration that has already been applied** to a DB you care about. Add a new numbered file instead (`002`, `003`, …).
-- **Never write backfills.** Do not add data-backfill steps (migration `UPDATE`s that repopulate rows, startup "recompute for existing rows" passes, etc.). New/changed columns only need to be populated for **newly ingested** data. When existing rows must reflect a schema/logic change during dev, **wipe the DB and restart** — do not migrate the old data forward.
-- **During local dev**, if you need to re-run from scratch: delete `./data/local-tracer.db` (or move it), edit the migration SQL, restart. This is the intended workflow — no down migrations, no backfills.
-- Migrations must be **sequential** (v1, v2, v3…). The runner rejects gaps (e.g. DB at v1 but only v3 exists).
+- Incremental changes use numbered files (`002_<name>.sql`, …).
+- **All DDL goes in `apps/api/src/db/sql/`**. Register numbered migrations in `MIGRATIONS` in `db/migrate.ts`.
+- **Never edit a migration that has already been applied** to a DB you care about. Add a new numbered file instead.
+- **Never write backfills.** New/changed columns only need to be populated for **newly ingested** data. When existing rows must reflect a schema/logic change during dev, **wipe the DB and restart**.
+- **During local dev**, if you need to re-run from scratch: delete `./data/local-tracer.db` (or move it), edit the migration SQL, restart.
+- Migrations must be **sequential** (v1, v2, v3…). The runner rejects gaps.
 - Each `.sql` file can contain multiple statements separated by `;`. Do not put semicolons inside string literals.
 - `schema_meta` is managed by the runner — do not create or modify it in migration files.
 
 ### Running migrations
 
-There is **no separate migration CLI**. Migrations run automatically when the engine opens the database:
+There is **no separate migration CLI**. Migrations run when the API opens the database:
 
 ```
-cargo run -p api
-  → main.rs: Repositories::open(&config.database_path)
-  → repository/mod.rs: conn.with_conn(init_schema)
-  → storage/schema/mod.rs: run_migrations()
+bun src/index.ts   # or just dev / pnpm --filter @local-tracer/api dev
+  → openDb() → initSchema() → CHECKPOINT
 ```
 
 - **Database path:** `LT_DATABASE_PATH` env var, default `./data/local-tracer.db`.
@@ -435,28 +262,19 @@ duckdb ./data/local-tracer.db -c "SELECT version FROM schema_meta;"
 duckdb ./data/local-tracer.db -c "SELECT table_name FROM information_schema.tables WHERE table_schema='main' ORDER BY table_name;"
 ```
 
-Expected on a fresh DB: `schema_meta.version = 1`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
+Expected on a fresh DB: `schema_meta.version = 4`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
 
-**Legacy schema error:** if startup fails with `legacy MVP database schema detected (traces.id column)`, the DB predates the current migration system. Move or delete `./data/local-tracer.db` (and its `.wal` file if present), then restart the API to create a fresh DB.
+**Legacy schema error:** if startup fails with `legacy MVP database schema detected (traces.id column)`, the DB predates the current migration system. Move or delete `./data/local-tracer.db` (and its `.wal` file if present), then restart the API.
 
 ### Adding a migration
 
-1. Create `packages/engine/src/storage/schema/migrations/00N_<name>.sql`.
-2. Append an entry to `MIGRATIONS` in `storage/schema/mod.rs`:
-
-```rust
-Migration {
-    version: 2,
-    name: "add_foo",
-    sql: include_str!("migrations/002_add_foo.sql"),
-},
-```
-
-3. Restart the engine. Pending migrations apply automatically; already-applied ones are skipped.
+1. Create `apps/api/src/db/sql/00N_<name>.sql`.
+2. Append an entry to `MIGRATIONS` in `db/migrate.ts`.
+3. Restart the API.
 
 ### Changing schema in dev (wipe + edit)
 
-1. Stop the engine.
+1. Stop the API.
 2. Delete or move `./data/local-tracer.db`.
-3. Edit the migration SQL (typically the `<table>.sql` files while the project is young).
+3. Edit the migration SQL.
 4. Restart — migrations run on a fresh DB.

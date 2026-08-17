@@ -12,7 +12,7 @@ just dev → DuckDB → GET /api/traces → React
 
 ```bash
 pnpm install
-just dev    # auto-installs cargo-watch on first run
+just dev
 ```
 
 Open [http://localhost:8080](http://localhost:8080).
@@ -26,8 +26,8 @@ On startup, `just dev`:
    - Source: `./data/local-tracer.db`
    - Snapshot: `./data/local-tracer-readonly.db` (+ `.wal` when present)
    - Copies use a temp file + rename so readers never see a half-written file.
-3. **Runs the API with hot reload** — `cargo watch -x 'run -p api'` (watches `apps/` and `packages/`).
-4. **Runs the web UI** — `pnpm dev`.
+3. **Runs the API with hot reload** — `bun --watch` on `apps/api`.
+4. **Runs the web UI** — `pnpm --filter @local-tracer/web dev`.
 
 DuckDB allows only one process to lock the database file at a time. The API owns the live file; external tools should use the snapshot.
 
@@ -48,7 +48,8 @@ docker compose up
 ## Architecture (Week 1)
 
 ```
-React → API → Query / Ingest → Engine → DuckDB
+React → Bun API (Hono) → DuckDB
+         ↑ OTLP /v1/traces|logs|metrics
 ```
 
 ## Environment

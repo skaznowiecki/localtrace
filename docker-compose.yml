@@ -5,13 +5,13 @@ services:
       dockerfile: apps/api/Dockerfile
     volumes:
       - ./data:/app/data
-ports:
-  - "4318:4318"
-environment:
-  - LT_DATABASE_PATH=/app/data/local-tracer.db
-  - LT_API_PORT=4318
-healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
+    ports:
+      - "4318:4318"
+    environment:
+      - LT_DATABASE_PATH=/app/data/local-tracer.db
+      - LT_API_PORT=4318
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4318/health"]
       interval: 5s
       timeout: 3s
       retries: 5

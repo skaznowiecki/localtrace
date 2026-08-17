@@ -1,9 +1,0 @@
-[package]
-name = "service"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-common.workspace = true
-domain.workspace = true
-engine.workspace = true
