@@ -141,17 +141,17 @@ export function useTracesContext() { /* useContext + guard */ }
 
 - Bun + TypeScript
 - Hono
-- DuckDB via `@duckdb/node-api`
+- SQLite via `bun:sqlite`
 - OTLP HTTP (`POST /v1/traces|logs|metrics`) JSON and protobuf (gzip optional)
 
-One app, no Cargo workspace and no extra pnpm packages. Colocate by feature; each feature owns `types/`, `repositories/`, `services/`, `http/`.
+One app, no extra pnpm packages. Colocate by feature; each feature owns `types/`, `repositories/`, `services/`, `http/`.
 
 ```
 apps/api/src/
   index.ts              boot
   app.ts                Hono + cors + error handler
   config.ts             LT_* env vars
-  db/                   connection queue, migrations, SQL files
+  shared/db/            SQLite connection, migrations, helpers, CLI
   lib/                  ids + attrs (reused by 2+ features)
   features/
     traces/             list GET + persist (called by ingest)
@@ -174,7 +174,7 @@ features/traces/
 
 **Rules**
 
-- SQL lives in `repositories/`. Services call repos, not DuckDB.
+- SQL lives in `repositories/`. Services call repos, not SQLite.
 - `http/` calls services, not repos.
 - Ingest does **not** have repositories. `features/ingest/services/ingest.ts` parses via a **provider** and calls `traces/logs/metrics` persist.
 - OTLP is a provider (`features/ingest/providers/otlp/`), not the ingest service. Future protocols get `providers/<name>/`.
@@ -189,17 +189,17 @@ POST /v1/traces
   → ingest/http (gzip, 429, timeout)
   → ingest/services/ingest.ts
   → providers/otlp (JSON or protobuf → records)
-  → traces/services/persist → traces/repositories → DuckDB
+  → traces/services/persist → traces/repositories → SQLite
 ```
 
 ### Data flow — read
 
 ```
 GET /api/traces
-  → traces/http → traces/services/list → traces/repositories → DuckDB
+  → traces/http → traces/services/list → traces/repositories → SQLite
 ```
 
-DuckDB is a single writer. `db/client.ts` serializes all work through `run(fn)`.
+SQLite is a single writer. `shared/db/client.ts` serializes all work through `run(fn)`.
 
 ### Where does new code go?
 
@@ -212,17 +212,19 @@ DuckDB is a single writer. `db/client.ts` serializes all work through `run(fn)`.
 | New ingest protocol | `features/ingest/providers/<name>/` |
 | HTTP route | `features/<name>/http/routes.ts` |
 | Shared id/attr helpers | `src/lib/` |
-| Schema migration | `apps/api/src/db/sql/` + register in `db/migrate.ts` |
+| Schema migration | `apps/api/src/shared/db/sql/` + register in `shared/db/migrate.ts` |
 | App config | `src/config.ts` |
 
-## DuckDB schema migrations
+## SQLite schema migrations
 
-Migrations are versioned SQL files applied sequentially at startup. Version is tracked in `schema_meta.version`.
+Migrations are versioned SQL files applied sequentially at startup (and via `just migrate`). Version is tracked in `schema_meta.version`.
 
 ```
-apps/api/src/db/
+apps/api/src/shared/db/
   client.ts
   migrate.ts
+  cli.ts
+  helpers/
   sql/
     001_spans.sql
     001_traces.sql
@@ -236,41 +238,51 @@ apps/api/src/db/
 ### Rules
 
 - Incremental changes use numbered files (`002_<name>.sql`, …).
-- **All DDL goes in `apps/api/src/db/sql/`**. Register numbered migrations in `MIGRATIONS` in `db/migrate.ts`.
+- **All DDL goes in `apps/api/src/shared/db/sql/`**. Register numbered migrations in `MIGRATIONS` in `shared/db/migrate.ts`.
 - **Never edit a migration that has already been applied** to a DB you care about. Add a new numbered file instead.
 - **Never write backfills.** New/changed columns only need to be populated for **newly ingested** data. When existing rows must reflect a schema/logic change during dev, **wipe the DB and restart**.
-- **During local dev**, if you need to re-run from scratch: delete `./data/local-tracer.db` (or move it), edit the migration SQL, restart.
+- **During local dev**, if you need to re-run from scratch: delete `./data/local-tracer.db`, edit the migration SQL, restart.
 - Migrations must be **sequential** (v1, v2, v3…). The runner rejects gaps.
 - Each `.sql` file can contain multiple statements separated by `;`. Do not put semicolons inside string literals.
 - `schema_meta` is managed by the runner — do not create or modify it in migration files.
 
 ### Running migrations
 
-There is **no separate migration CLI**. Migrations run when the API opens the database:
+Pending migrations apply when the API opens the database. To run them without starting the server:
+
+```
+just migrate
+# or: pnpm --filter @local-tracer/api migrate
+  → bun src/shared/db/cli.ts → openDb() → initSchema()
+```
+
+Boot path:
 
 ```
 bun src/index.ts   # or just dev / pnpm --filter @local-tracer/api dev
-  → openDb() → initSchema() → CHECKPOINT
+  → openDb() → initSchema()
 ```
 
 - **Database path:** `LT_DATABASE_PATH` env var, default `./data/local-tracer.db`.
 - **Pending migrations** apply on startup; already-applied ones are skipped (idempotent).
-- **Verify** with DuckDB CLI:
+- **Verify** with sqlite3 against the live file (WAL allows concurrent readers):
 
 ```bash
-duckdb ./data/local-tracer.db -c "SELECT version FROM schema_meta;"
-duckdb ./data/local-tracer.db -c "SELECT table_name FROM information_schema.tables WHERE table_schema='main' ORDER BY table_name;"
+sqlite3 ./data/local-tracer.db "SELECT version FROM schema_meta;"
+sqlite3 ./data/local-tracer.db "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 ```
 
 Expected on a fresh DB: `schema_meta.version = 4`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
 
-**Legacy schema error:** if startup fails with `legacy MVP database schema detected (traces.id column)`, the DB predates the current migration system. Move or delete `./data/local-tracer.db` (and its `.wal` file if present), then restart the API.
+**Not a database:** if startup fails because the file is leftover DuckDB, delete `./data/local-tracer.db` (and `.wal` / `-wal` / `-shm`) and restart.
+
+**Legacy schema error:** if startup fails with `legacy MVP database schema detected (traces.id column)`, the DB predates the current migration system. Move or delete `./data/local-tracer.db` and restart.
 
 ### Adding a migration
 
-1. Create `apps/api/src/db/sql/00N_<name>.sql`.
-2. Append an entry to `MIGRATIONS` in `db/migrate.ts`.
-3. Restart the API.
+1. Create `apps/api/src/shared/db/sql/00N_<name>.sql`.
+2. Append an entry to `MIGRATIONS` in `shared/db/migrate.ts`.
+3. Restart the API (or `just migrate`).
 
 ### Changing schema in dev (wipe + edit)
 

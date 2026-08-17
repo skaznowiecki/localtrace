@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "migrate": "bun src/shared/db/cli.ts"
   },
   "dependencies": {
-    "@duckdb/node-api": "1.5.5-r.4",
     "hono": "^4.13.2",
     "protobufjs": "^8.7.2"
   },

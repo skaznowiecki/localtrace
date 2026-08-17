@@ -1,4 +1,4 @@
-import type { Db } from "../../../db/client"
+import type { Db } from "../../../shared/db"
 import type { SpanRecord, TraceSummary } from "../types/span"
 import * as repo from "../repositories/traces"
 import { normalizeRoutePath } from "./normalize-route"

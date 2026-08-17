@@ -1,0 +1,34 @@
+CREATE TABLE IF NOT EXISTS spans (
+    trace_id            TEXT NOT NULL,
+    span_id             TEXT NOT NULL,
+    parent_span_id      TEXT,
+    name                TEXT NOT NULL,
+    kind                INTEGER NOT NULL,
+    start_time_ns       INTEGER NOT NULL,
+    end_time_ns         INTEGER NOT NULL,
+    duration_ns         INTEGER NOT NULL,
+    status_code         INTEGER NOT NULL,
+    status_message      TEXT,
+    trace_state         TEXT,
+    flags               INTEGER NOT NULL,
+    dropped_attributes_count INTEGER NOT NULL,
+    dropped_events_count     INTEGER NOT NULL,
+    dropped_links_count      INTEGER NOT NULL,
+    service_name        TEXT NOT NULL,
+    resource_attributes TEXT,
+    resource_dropped_attributes_count INTEGER NOT NULL,
+    resource_schema_url TEXT,
+    scope_name          TEXT,
+    scope_version       TEXT,
+    scope_attributes    TEXT,
+    scope_dropped_attributes_count INTEGER NOT NULL,
+    scope_schema_url    TEXT,
+    attributes          TEXT,
+    events              TEXT,
+    links               TEXT,
+    received_at         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (trace_id, span_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans (trace_id);
+CREATE INDEX IF NOT EXISTS idx_spans_service_time ON spans (service_name, start_time_ns);

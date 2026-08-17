@@ -1,5 +1,9 @@
-import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api"
-import { INSERT_CHUNK, valuePlaceholders, valuePlaceholdersWithSqlTail } from "../../../db/sql"
+import type { DbConn, SqlValue } from "../../../shared/db"
+import {
+  INSERT_CHUNK,
+  valuePlaceholders,
+  valuePlaceholdersWithSqlTail,
+} from "../../../shared/db"
 import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../lib/attrs"
 import type { Json } from "../../../lib/attrs"
 import type {
@@ -91,11 +95,11 @@ function mapSpan(row: Record<string, unknown>): SpanRecord {
 }
 
 export async function listTraces(
-  conn: DuckDBConnection,
+  conn: DbConn,
   filters: TraceListFilters,
 ): Promise<TraceSummary[]> {
   const conditions: string[] = []
-  const params: DuckDBValue[] = []
+  const params: SqlValue[] = []
 
   if (filters.service) {
     conditions.push("root_service = ?")
@@ -114,7 +118,7 @@ export async function listTraces(
     params.push(filters.httpStatusCode)
   }
   if (filters.name) {
-    conditions.push("root_name ILIKE '%' || ? || '%'")
+    conditions.push("root_name LIKE '%' || ? || '%' COLLATE NOCASE")
     params.push(filters.name)
   }
   if (filters.url) {
@@ -136,14 +140,14 @@ export async function listTraces(
 
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
   params.push(filters.limit)
-  const reader = await conn.runAndReadAll(
+  const rows = await conn.all(
     `${TRACE_SELECT}${where} ORDER BY start_time_ns DESC LIMIT ?`,
     params,
   )
-  return reader.getRowObjectsJS().map((row) => mapTrace(row))
+  return rows.map((row) => mapTrace(row))
 }
 
-export async function listFacets(conn: DuckDBConnection): Promise<TraceFacets> {
+export async function listFacets(conn: DbConn): Promise<TraceFacets> {
   const services = await distinctStrings(
     conn,
     `SELECT DISTINCT COALESCE(root_service, 'unknown_service') AS value
@@ -156,24 +160,22 @@ export async function listFacets(conn: DuckDBConnection): Promise<TraceFacets> {
      WHERE http_method IS NOT NULL AND http_method <> ''
      ORDER BY value`,
   )
-  const codesReader = await conn.runAndReadAll(
+  const codesRows = await conn.all(
     `SELECT DISTINCT http_status_code AS value
      FROM traces
      WHERE http_status_code IS NOT NULL
      ORDER BY value`,
   )
-  const httpStatusCodes = codesReader
-    .getRowObjectsJS()
-    .map((row) => toNumber(row.value))
+  const httpStatusCodes = codesRows.map((row) => toNumber(row.value))
 
-  const routesReader = await conn.runAndReadAll(
+  const routesRows = await conn.all(
     `SELECT http_route AS value, count(*) AS n
      FROM traces
      WHERE http_route IS NOT NULL AND http_route <> ''
      GROUP BY http_route
      ORDER BY n DESC, value`,
   )
-  const routes = routesReader.getRowObjectsJS().map((row) => ({
+  const routes = routesRows.map((row) => ({
     value: String(row.value),
     count: toNumber(row.n),
   }))
@@ -188,14 +190,13 @@ export async function listFacets(conn: DuckDBConnection): Promise<TraceFacets> {
 }
 
 export async function getTraceWithSpans(
-  conn: DuckDBConnection,
+  conn: DbConn,
   traceId: string,
 ): Promise<{ trace: TraceSummary; spans: SpanRecord[] } | undefined> {
-  const traceReader = await conn.runAndReadAll(
-    `${TRACE_SELECT} WHERE trace_id = ?`,
-    [traceId],
-  )
-  const traceRow = traceReader.getRowObjectsJS()[0]
+  const traceRows = await conn.all(`${TRACE_SELECT} WHERE trace_id = ?`, [
+    traceId,
+  ])
+  const traceRow = traceRows[0]
   if (!traceRow) return undefined
 
   const spans = await listSpansForTrace(conn, traceId)
@@ -203,20 +204,20 @@ export async function getTraceWithSpans(
 }
 
 export async function listSpansForTrace(
-  conn: DuckDBConnection,
+  conn: DbConn,
   traceId: string,
 ): Promise<SpanRecord[]> {
-  const reader = await conn.runAndReadAll(
+  const rows = await conn.all(
     `${SPAN_SELECT} WHERE trace_id = ? ORDER BY start_time_ns ASC`,
     [traceId],
   )
-  return reader.getRowObjectsJS().map((row) => mapSpan(row))
+  return rows.map((row) => mapSpan(row))
 }
 
 const SPAN_COLUMNS = 27
 const TRACE_COLUMNS = 14
 
-function spanValues(span: SpanRecord): DuckDBValue[] {
+function spanValues(span: SpanRecord): SqlValue[] {
   return [
     span.traceId,
     span.spanId,
@@ -248,11 +249,11 @@ function spanValues(span: SpanRecord): DuckDBValue[] {
   ]
 }
 
-function summaryValues(summary: TraceSummary): DuckDBValue[] {
+function summaryValues(summary: TraceSummary): SqlValue[] {
   return [
     summary.traceId,
     summary.rootSpanId ?? null,
-    summary.rootObserved,
+    summary.rootObserved ? 1 : 0,
     summary.rootService ?? null,
     summary.rootName ?? null,
     summary.startTimeNs,
@@ -268,7 +269,7 @@ function summaryValues(summary: TraceSummary): DuckDBValue[] {
 }
 
 export async function upsertSpans(
-  conn: DuckDBConnection,
+  conn: DbConn,
   spans: SpanRecord[],
 ): Promise<void> {
   if (spans.length === 0) return
@@ -299,7 +300,7 @@ export async function upsertSpans(
             attributes = excluded.attributes,
             events = excluded.events,
             links = excluded.links,
-            received_at = now()`
+            received_at = CURRENT_TIMESTAMP`
 
   for (let i = 0; i < spans.length; i += INSERT_CHUNK) {
     const chunk = spans.slice(i, i + INSERT_CHUNK)
@@ -320,7 +321,7 @@ export async function upsertSpans(
 }
 
 export async function loadTraceRebuildRows(
-  conn: DuckDBConnection,
+  conn: DbConn,
   traceIds: string[],
 ): Promise<TraceRebuildRow[]> {
   if (traceIds.length === 0) return []
@@ -329,7 +330,7 @@ export async function loadTraceRebuildRows(
   for (let i = 0; i < traceIds.length; i += INSERT_CHUNK) {
     const chunk = traceIds.slice(i, i + INSERT_CHUNK)
     const inList = chunk.map(() => "?").join(", ")
-    const reader = await conn.runAndReadAll(
+    const rebuildRows = await conn.all(
       `WITH ranked AS (
          SELECT
            trace_id,
@@ -352,8 +353,8 @@ export async function loadTraceRebuildRows(
            trace_id,
            min(start_time_ns) AS start_time_ns,
            max(end_time_ns) AS end_time_ns,
-           count(*)::INTEGER AS span_count,
-           bool_or(parent_span_id IS NULL OR parent_span_id = '') AS root_observed
+           CAST(count(*) AS INTEGER) AS span_count,
+           MAX(CASE WHEN parent_span_id IS NULL OR parent_span_id = '' THEN 1 ELSE 0 END) AS root_observed
          FROM spans
          WHERE trace_id IN (${inList})
          GROUP BY trace_id
@@ -374,7 +375,7 @@ export async function loadTraceRebuildRows(
        JOIN ranked r ON r.trace_id = a.trace_id AND r.rn = 1`,
       [...chunk, ...chunk],
     )
-    for (const row of reader.getRowObjectsJS()) {
+    for (const row of rebuildRows) {
       rows.push({
         traceId: String(row.trace_id),
         startTimeNs: toBigInt(row.start_time_ns),
@@ -394,7 +395,7 @@ export async function loadTraceRebuildRows(
 }
 
 export async function upsertTraceSummaries(
-  conn: DuckDBConnection,
+  conn: DbConn,
   summaries: TraceSummary[],
 ): Promise<void> {
   if (summaries.length === 0) return
@@ -413,7 +414,7 @@ export async function upsertTraceSummaries(
                 http_status_code = excluded.http_status_code,
                 http_url = excluded.http_url,
                 http_route = excluded.http_route,
-                updated_at = now()`
+                updated_at = CURRENT_TIMESTAMP`
 
   for (let i = 0; i < summaries.length; i += INSERT_CHUNK) {
     const chunk = summaries.slice(i, i + INSERT_CHUNK)
@@ -429,12 +430,9 @@ export async function upsertTraceSummaries(
   }
 }
 
-async function distinctStrings(
-  conn: DuckDBConnection,
-  sql: string,
-): Promise<string[]> {
-  const reader = await conn.runAndReadAll(sql)
-  return reader.getRowObjectsJS().map((row) => String(row.value))
+async function distinctStrings(conn: DbConn, sql: string): Promise<string[]> {
+  const rows = await conn.all(sql)
+  return rows.map((row) => String(row.value))
 }
 
 export type { Json }

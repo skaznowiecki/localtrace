@@ -1,4 +1,4 @@
-import type { Db } from "../../../db/client"
+import type { Db } from "../../../shared/db"
 import type { PayloadFormat } from "../types/otlp"
 import { persistSpans } from "../../traces"
 import { persistLogs } from "../../logs"

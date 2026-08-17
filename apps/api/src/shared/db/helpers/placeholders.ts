@@ -12,5 +12,3 @@ export function valuePlaceholdersWithSqlTail(
   const row = `(${marks}, ${tailSql})`
   return Array.from({ length: rowCount }, () => row).join(", ")
 }
-
-export const INSERT_CHUNK = 64

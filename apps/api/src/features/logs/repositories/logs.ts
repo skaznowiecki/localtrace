@@ -1,5 +1,5 @@
-import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api"
-import { INSERT_CHUNK, valuePlaceholders } from "../../../db/sql"
+import type { DbConn, SqlValue } from "../../../shared/db"
+import { INSERT_CHUNK, valuePlaceholders } from "../../../shared/db"
 import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../lib/attrs"
 import type { LogRecord } from "../types/log"
 
@@ -36,10 +36,10 @@ function mapRow(row: Record<string, unknown>): LogRecord {
 }
 
 export async function listForTrace(
-  conn: DuckDBConnection,
+  conn: DbConn,
   traceId: string,
 ): Promise<LogRecord[]> {
-  const reader = await conn.runAndReadAll(
+  const rows = await conn.all(
     `SELECT id, time_ns, observed_time_ns, severity_number, severity_text,
             body_any, event_name, service_name, resource_attributes,
             resource_dropped_attributes_count, resource_schema_url,
@@ -52,12 +52,12 @@ export async function listForTrace(
      ORDER BY time_ns ASC`,
     [traceId],
   )
-  return reader.getRowObjectsJS().map((row) => mapRow(row))
+  return rows.map((row) => mapRow(row))
 }
 
 const LOG_COLUMNS = 21
 
-function logValues(log: LogRecord): DuckDBValue[] {
+function logValues(log: LogRecord): SqlValue[] {
   return [
     log.id,
     log.timeNs,
@@ -84,7 +84,7 @@ function logValues(log: LogRecord): DuckDBValue[] {
 }
 
 export async function insertLogs(
-  conn: DuckDBConnection,
+  conn: DbConn,
   logs: LogRecord[],
 ): Promise<void> {
   if (logs.length === 0) return

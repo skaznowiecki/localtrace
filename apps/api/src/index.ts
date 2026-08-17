@@ -1,7 +1,7 @@
 import { createApp } from "./app"
 import { IngestGate } from "./app-env"
 import { loadConfig } from "./config"
-import { openDb } from "./db/client"
+import { openDb } from "./shared/db"
 
 const config = loadConfig()
 const db = await openDb(config.databasePath)

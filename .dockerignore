@@ -5,4 +5,6 @@ data/
 .env
 *.db
 *.db.wal
+*.db-wal
+*.db-shm
 apps/web/dist/

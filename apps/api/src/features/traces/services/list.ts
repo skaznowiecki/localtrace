@@ -1,4 +1,4 @@
-import type { Db } from "../../../db/client"
+import type { Db } from "../../../shared/db"
 import type { TraceListFilters, TraceSummary, SpanRecord, TraceFacets } from "../types/span"
 import * as repo from "../repositories/traces"
 

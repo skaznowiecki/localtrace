@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
-import type { DuckDBConnection } from "@duckdb/node-api"
+import type { DbConn } from "./client"
 
 type Migration = {
   version: number
@@ -33,7 +33,7 @@ const MIGRATIONS: Migration[] = [
   },
 ]
 
-async function execScript(conn: DuckDBConnection, sql: string): Promise<void> {
+async function execScript(conn: DbConn, sql: string): Promise<void> {
   for (const statement of sql.split(";")) {
     const trimmed = statement.trim()
     if (!trimmed) continue
@@ -41,24 +41,18 @@ async function execScript(conn: DuckDBConnection, sql: string): Promise<void> {
   }
 }
 
-async function currentVersion(conn: DuckDBConnection): Promise<number> {
-  const countReader = await conn.runAndReadAll(
-    "SELECT COUNT(*) AS n FROM schema_meta",
-  )
-  const count = Number(countReader.getRowObjectsJS()[0]?.n ?? 0)
+async function currentVersion(conn: DbConn): Promise<number> {
+  const countRows = await conn.all("SELECT COUNT(*) AS n FROM schema_meta")
+  const count = Number(countRows[0]?.n ?? 0)
   if (count === 0) return 0
 
-  const verReader = await conn.runAndReadAll(
-    "SELECT version FROM schema_meta LIMIT 1",
-  )
-  return Number(verReader.getRowObjectsJS()[0]?.version ?? 0)
+  const verRows = await conn.all("SELECT version FROM schema_meta LIMIT 1")
+  return Number(verRows[0]?.version ?? 0)
 }
 
-async function setVersion(conn: DuckDBConnection, version: number): Promise<void> {
-  const countReader = await conn.runAndReadAll(
-    "SELECT COUNT(*) AS n FROM schema_meta",
-  )
-  const count = Number(countReader.getRowObjectsJS()[0]?.n ?? 0)
+async function setVersion(conn: DbConn, version: number): Promise<void> {
+  const countRows = await conn.all("SELECT COUNT(*) AS n FROM schema_meta")
+  const count = Number(countRows[0]?.n ?? 0)
   if (count === 0) {
     await conn.run("INSERT INTO schema_meta (version) VALUES (?)", [version])
   } else {
@@ -66,31 +60,33 @@ async function setVersion(conn: DuckDBConnection, version: number): Promise<void
   }
 }
 
-async function assertNotLegacySchema(conn: DuckDBConnection): Promise<void> {
-  const tables = await conn.runAndReadAll(
-    `SELECT COUNT(*) AS n FROM information_schema.tables
-     WHERE table_schema = 'main' AND table_name = 'traces'`,
+async function assertNotLegacySchema(conn: DbConn): Promise<void> {
+  const tables = await conn.all(
+    `SELECT COUNT(*) AS n FROM sqlite_master
+     WHERE type = 'table' AND name = 'traces'`,
   )
-  if (Number(tables.getRowObjectsJS()[0]?.n ?? 0) === 0) return
+  if (Number(tables[0]?.n ?? 0) === 0) return
 
-  const cols = await conn.runAndReadAll(
-    `SELECT COUNT(*) AS n FROM information_schema.columns
-     WHERE table_schema = 'main' AND table_name = 'traces' AND column_name = 'id'`,
+  const cols = await conn.all(
+    `SELECT COUNT(*) AS n FROM pragma_table_info('traces') WHERE name = 'id'`,
   )
-  if (Number(cols.getRowObjectsJS()[0]?.n ?? 0) > 0) {
+  if (Number(cols[0]?.n ?? 0) > 0) {
     throw new Error(
       "legacy MVP database schema detected (traces.id column). Delete or move ./data/local-tracer.db and restart.",
     )
   }
 }
 
-export async function initSchema(conn: DuckDBConnection): Promise<void> {
+export async function initSchema(
+  conn: DbConn,
+): Promise<{ from: number; to: number }> {
   await assertNotLegacySchema(conn)
   await conn.run(
     "CREATE TABLE IF NOT EXISTS schema_meta (version INTEGER NOT NULL)",
   )
 
-  let current = await currentVersion(conn)
+  const from = await currentVersion(conn)
+  let current = from
   for (const migration of MIGRATIONS) {
     if (migration.version <= current) continue
     if (migration.version !== current + 1) {
@@ -112,4 +108,5 @@ export async function initSchema(conn: DuckDBConnection): Promise<void> {
     await setVersion(conn, migration.version)
     current = migration.version
   }
+  return { from, to: current }
 }

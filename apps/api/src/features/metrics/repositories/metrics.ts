@@ -1,10 +1,10 @@
-import type { DuckDBConnection, DuckDBValue } from "@duckdb/node-api"
-import { INSERT_CHUNK, valuePlaceholders } from "../../../db/sql"
+import type { DbConn, SqlValue } from "../../../shared/db"
+import { INSERT_CHUNK, valuePlaceholders } from "../../../shared/db"
 import type { MetricDataPoint } from "../types/metric"
 
 const METRIC_COLUMNS = 29
 
-function metricValues(point: MetricDataPoint): DuckDBValue[] {
+function metricValues(point: MetricDataPoint): SqlValue[] {
   return [
     point.id,
     point.name,
@@ -12,7 +12,7 @@ function metricValues(point: MetricDataPoint): DuckDBValue[] {
     point.unit ?? "",
     point.metricType,
     point.aggregationTemporality ?? null,
-    point.isMonotonic ?? null,
+    point.isMonotonic == null ? null : point.isMonotonic ? 1 : 0,
     JSON.stringify(point.metadata ?? null),
     point.serviceName,
     JSON.stringify(point.resourceAttributes ?? null),
@@ -39,7 +39,7 @@ function metricValues(point: MetricDataPoint): DuckDBValue[] {
 }
 
 export async function insertMetrics(
-  conn: DuckDBConnection,
+  conn: DbConn,
   points: MetricDataPoint[],
 ): Promise<void> {
   if (points.length === 0) return

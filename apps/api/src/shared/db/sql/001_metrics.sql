@@ -1,0 +1,35 @@
+CREATE TABLE IF NOT EXISTS metrics (
+    id                       TEXT PRIMARY KEY,
+    name                     TEXT NOT NULL,
+    description              TEXT,
+    unit                     TEXT,
+    metric_type              INTEGER NOT NULL,
+    aggregation_temporality  INTEGER,
+    is_monotonic             INTEGER,
+    metadata                 TEXT,
+    service_name             TEXT,
+    resource_attributes      TEXT,
+    resource_dropped_attributes_count INTEGER NOT NULL,
+    resource_schema_url      TEXT,
+    scope_name               TEXT,
+    scope_version            TEXT,
+    scope_attributes         TEXT,
+    scope_dropped_attributes_count INTEGER NOT NULL,
+    scope_schema_url         TEXT,
+    attributes               TEXT,
+    start_time_ns            INTEGER,
+    time_ns                  INTEGER NOT NULL,
+    value_double             REAL,
+    int_value                INTEGER,
+    count                    INTEGER,
+    sum                      REAL,
+    min                      REAL,
+    max                      REAL,
+    exemplars                TEXT,
+    flags                    INTEGER NOT NULL,
+    data                     TEXT NOT NULL,
+    received_at              TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_name_time ON metrics (name, time_ns DESC);
+CREATE INDEX IF NOT EXISTS idx_metrics_service ON metrics (service_name);
