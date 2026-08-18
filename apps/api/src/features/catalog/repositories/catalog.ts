@@ -1,8 +1,8 @@
 import type { DbConn } from "../../../shared/db"
-import { toNumber } from "../../../lib/attrs"
+import { toNumber } from "../../../shared/helpers"
 import type { ServiceCard } from "../types/service"
 
-export async function listServices(
+export async function list(
   conn: DbConn,
 ): Promise<ServiceCard[]> {
   const rows = await conn.all(

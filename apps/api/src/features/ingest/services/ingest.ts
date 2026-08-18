@@ -1,36 +1,42 @@
-import type { Db } from "../../../shared/db"
-import type { PayloadFormat } from "../types/otlp"
-import { persistSpans } from "../../traces"
-import { persistLogs } from "../../logs"
-import { persistMetrics } from "../../metrics"
-import { parseLogs, parseMetrics, parseTraces } from "../providers/otlp"
+import type { Context } from "hono"
+import type { AppEnv } from "../../../app-env"
+import { log } from "../../../shared/helpers"
+import { store as storeTraces } from "../../traces"
+import { store as storeLogs } from "../../logs"
+import { store as storeMetrics } from "../../metrics"
+import type { ResolvedIngestProvider } from "../providers/types"
 
 export async function ingestTraces(
-  db: Db,
-  body: Uint8Array,
-  format: PayloadFormat,
-): Promise<number> {
-  const spans = await parseTraces(body, format)
-  await persistSpans(db, spans)
-  return spans.length
+  c: Context<AppEnv>,
+  provider: ResolvedIngestProvider,
+): Promise<void> {
+  const raw = new Uint8Array(await c.req.arrayBuffer())
+  const body = provider.decode(raw)
+  const spans = await provider.parseTraces(body)
+  await storeTraces(c.get("db"), spans)
+  log(`ingest batch provider=${provider.id} signal=traces count=${spans.length}`)
 }
 
 export async function ingestLogs(
-  db: Db,
-  body: Uint8Array,
-  format: PayloadFormat,
-): Promise<number> {
-  const logs = await parseLogs(body, format)
-  await persistLogs(db, logs)
-  return logs.length
+  c: Context<AppEnv>,
+  provider: ResolvedIngestProvider,
+): Promise<void> {
+  const raw = new Uint8Array(await c.req.arrayBuffer())
+  const body = provider.decode(raw)
+  const records = await provider.parseLogs(body)
+  await storeLogs(c.get("db"), records)
+  log(`ingest batch provider=${provider.id} signal=logs count=${records.length}`)
 }
 
 export async function ingestMetrics(
-  db: Db,
-  body: Uint8Array,
-  format: PayloadFormat,
-): Promise<number> {
-  const points = await parseMetrics(body, format)
-  await persistMetrics(db, points)
-  return points.length
+  c: Context<AppEnv>,
+  provider: ResolvedIngestProvider,
+): Promise<void> {
+  const raw = new Uint8Array(await c.req.arrayBuffer())
+  const body = provider.decode(raw)
+  const points = await provider.parseMetrics(body)
+  await storeMetrics(c.get("db"), points)
+  log(
+    `ingest batch provider=${provider.id} signal=metrics count=${points.length}`,
+  )
 }

@@ -2,10 +2,9 @@ import type { DbConn, SqlValue } from "../../../shared/db"
 import {
   INSERT_CHUNK,
   valuePlaceholders,
-  valuePlaceholdersWithSqlTail,
 } from "../../../shared/db"
-import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../lib/attrs"
-import type { Json } from "../../../lib/attrs"
+import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../shared/helpers"
+import type { Json } from "../../../shared/helpers"
 import type {
   SpanRecord,
   TraceFacets,
@@ -13,7 +12,7 @@ import type {
   TraceSummary,
 } from "../types/span"
 
-export type TraceRebuildRow = {
+export type RebuildRow = {
   traceId: string
   startTimeNs: bigint
   endTimeNs: bigint
@@ -94,7 +93,7 @@ function mapSpan(row: Record<string, unknown>): SpanRecord {
   }
 }
 
-export async function listTraces(
+export async function list(
   conn: DbConn,
   filters: TraceListFilters,
 ): Promise<TraceSummary[]> {
@@ -147,7 +146,7 @@ export async function listTraces(
   return rows.map((row) => mapTrace(row))
 }
 
-export async function listFacets(conn: DbConn): Promise<TraceFacets> {
+export async function facets(conn: DbConn): Promise<TraceFacets> {
   const services = await distinctStrings(
     conn,
     `SELECT DISTINCT COALESCE(root_service, 'unknown_service') AS value
@@ -189,7 +188,7 @@ export async function listFacets(conn: DbConn): Promise<TraceFacets> {
   }
 }
 
-export async function getTraceWithSpans(
+export async function get(
   conn: DbConn,
   traceId: string,
 ): Promise<{ trace: TraceSummary; spans: SpanRecord[] } | undefined> {
@@ -199,11 +198,11 @@ export async function getTraceWithSpans(
   const traceRow = traceRows[0]
   if (!traceRow) return undefined
 
-  const spans = await listSpansForTrace(conn, traceId)
+  const spans = await listSpans(conn, traceId)
   return { trace: mapTrace(traceRow), spans }
 }
 
-export async function listSpansForTrace(
+async function listSpans(
   conn: DbConn,
   traceId: string,
 ): Promise<SpanRecord[]> {
@@ -253,7 +252,7 @@ function summaryValues(summary: TraceSummary): SqlValue[] {
   return [
     summary.traceId,
     summary.rootSpanId ?? null,
-    summary.rootObserved ? 1 : 0,
+    summary.rootObserved,
     summary.rootService ?? null,
     summary.rootName ?? null,
     summary.startTimeNs,
@@ -320,13 +319,13 @@ export async function upsertSpans(
   }
 }
 
-export async function loadTraceRebuildRows(
+export async function rebuild(
   conn: DbConn,
   traceIds: string[],
-): Promise<TraceRebuildRow[]> {
+): Promise<RebuildRow[]> {
   if (traceIds.length === 0) return []
 
-  const rows: TraceRebuildRow[] = []
+  const rows: RebuildRow[] = []
   for (let i = 0; i < traceIds.length; i += INSERT_CHUNK) {
     const chunk = traceIds.slice(i, i + INSERT_CHUNK)
     const inList = chunk.map(() => "?").join(", ")
@@ -353,7 +352,7 @@ export async function loadTraceRebuildRows(
            trace_id,
            min(start_time_ns) AS start_time_ns,
            max(end_time_ns) AS end_time_ns,
-           CAST(count(*) AS INTEGER) AS span_count,
+           count(*) AS span_count,
            MAX(CASE WHEN parent_span_id IS NULL OR parent_span_id = '' THEN 1 ELSE 0 END) AS root_observed
          FROM spans
          WHERE trace_id IN (${inList})
@@ -394,7 +393,7 @@ export async function loadTraceRebuildRows(
   return rows
 }
 
-export async function upsertTraceSummaries(
+export async function upsert(
   conn: DbConn,
   summaries: TraceSummary[],
 ): Promise<void> {
@@ -422,8 +421,8 @@ export async function upsertTraceSummaries(
       `INSERT INTO traces (
                 trace_id, root_span_id, root_observed, root_service, root_name,
                 start_time_ns, end_time_ns, duration_ns, status_code, span_count,
-                http_method, http_status_code, http_url, http_route, updated_at
-            ) VALUES ${valuePlaceholdersWithSqlTail(chunk.length, TRACE_COLUMNS, "current_timestamp")}
+                http_method, http_status_code, http_url, http_route
+            ) VALUES ${valuePlaceholders(chunk.length, TRACE_COLUMNS)}
             ${conflict}`,
       chunk.flatMap(summaryValues),
     )
@@ -434,5 +433,3 @@ async function distinctStrings(conn: DbConn, sql: string): Promise<string[]> {
   const rows = await conn.all(sql)
   return rows.map((row) => String(row.value))
 }
-
-export type { Json }

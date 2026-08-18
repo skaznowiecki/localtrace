@@ -1,6 +1,6 @@
 import type { DbConn, SqlValue } from "../../../shared/db"
 import { INSERT_CHUNK, valuePlaceholders } from "../../../shared/db"
-import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../lib/attrs"
+import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../shared/helpers"
 import type { LogRecord } from "../types/log"
 
 function mapRow(row: Record<string, unknown>): LogRecord {
@@ -35,7 +35,7 @@ function mapRow(row: Record<string, unknown>): LogRecord {
   }
 }
 
-export async function listForTrace(
+export async function forTrace(
   conn: DbConn,
   traceId: string,
 ): Promise<LogRecord[]> {
@@ -83,7 +83,7 @@ function logValues(log: LogRecord): SqlValue[] {
   ]
 }
 
-export async function insertLogs(
+export async function bulkCreate(
   conn: DbConn,
   logs: LogRecord[],
 ): Promise<void> {

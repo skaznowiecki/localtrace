@@ -1,5 +1,2 @@
-export { INSERT_CHUNK } from "./insert-chunk"
-export {
-  valuePlaceholders,
-  valuePlaceholdersWithSqlTail,
-} from "./placeholders"
+export { INSERT_CHUNK } from "./constants"
+export { valuePlaceholders } from "./placeholders"

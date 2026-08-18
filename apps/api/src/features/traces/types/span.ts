@@ -1,4 +1,4 @@
-import type { Json } from "../../../lib/attrs"
+import type { Json } from "../../../shared/helpers"
 
 export type SpanRecord = {
   traceId: string

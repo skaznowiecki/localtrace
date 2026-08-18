@@ -1,9 +1,10 @@
+import { parseLevel, type LogLevel } from "./shared/helpers/logger"
+
 export type Config = {
   databasePath: string
   apiPort: number
-  logLevel: string
+  logLevel: LogLevel
   otlpMaxBodyBytes: number
-  otlpMaxInFlight: number
 }
 
 function envInt(name: string, fallback: number): number {
@@ -17,8 +18,7 @@ export function loadConfig(): Config {
   return {
     databasePath: process.env.LT_DATABASE_PATH ?? "./data/local-tracer.db",
     apiPort: envInt("LT_API_PORT", 4318),
-    logLevel: process.env.LT_LOG_LEVEL ?? "info",
+    logLevel: parseLevel(process.env.LT_LOG_LEVEL),
     otlpMaxBodyBytes: envInt("LT_OTLP_MAX_BODY_BYTES", 16 * 1024 * 1024),
-    otlpMaxInFlight: envInt("LT_OTLP_MAX_IN_FLIGHT", 4),
   }
 }

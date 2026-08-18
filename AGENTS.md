@@ -1,5 +1,29 @@
 # AGENTS.md
 
+## Git commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) (`type(optional-scope): description`). Imperative mood, lowercase description, no trailing period.
+
+| Type | When |
+| --- | --- |
+| `feat` | new user-facing capability |
+| `fix` | bug fix |
+| `refactor` | change structure, same behavior |
+| `docs` | docs only |
+| `chore` | tooling, deps, housekeeping |
+| `test` | tests only |
+| `perf` | performance |
+| `ci` | CI / Justfile / Docker |
+
+Scope is optional and names the area (`web`, `api`, `traces`, `ingest`, …). Breaking changes add `!` after the type/scope (`feat(api)!: …`) or a `BREAKING CHANGE:` footer.
+
+```
+feat(traces): add HTTP status filter
+fix(ingest): reject oversized protobuf bodies
+refactor(api): split OTLP json and proto providers
+docs: document semantic commits
+```
+
 ## Frontend stack (`apps/web`)
 
 - React 19 + TypeScript
@@ -144,19 +168,36 @@ export function useTracesContext() { /* useContext + guard */ }
 - SQLite via `bun:sqlite`
 - OTLP HTTP (`POST /v1/traces|logs|metrics`) JSON and protobuf (gzip optional)
 
-One app, no extra pnpm packages. Colocate by feature; each feature owns `types/`, `repositories/`, `services/`, `http/`.
+One app, no extra pnpm packages. Colocate by feature; each feature owns `types/`, `repositories/`, `services/`, `routes.ts`.
+
+### Prefer native Bun APIs
+
+Node compat works. Native is faster and more idiomatic. Prefer `Bun.*` / `bun:*` over `node:*` when a native equivalent exists. Check the docs before reaching for Node.
+
+| Node compat | Native Bun |
+| --- | --- |
+| `gunzipSync` from `node:zlib` | `Bun.gunzipSync` |
+| `readFile` from `node:fs/promises` | `Bun.file(path).text()` |
+| `Database({ create, safeIntegers })` | also set `strict: true` (Bun 1.3) |
+
+Docs:
+
+- [Bun APIs](https://bun.sh/docs/runtime/bun-apis)
+- [File I/O](https://bun.sh/docs/api/file-io) — `Bun.file`, `Bun.write`
+- [gzip](https://bun.sh/docs/guides/util/gzip) — `Bun.gzipSync`, `Bun.gunzipSync`
+- [SQLite](https://bun.sh/docs/api/sqlite) — `bun:sqlite`, `{ create, safeIntegers, strict }`
+- [Utils](https://bun.sh/docs/api/utils)
 
 ```
 apps/api/src/
   index.ts              boot
   app.ts                Hono + cors + error handler
   config.ts             LT_* env vars
-  shared/db/            SQLite connection, migrations, helpers, CLI
-  lib/                  ids + attrs (reused by 2+ features)
+  shared/               db/, helpers/, errors/
   features/
-    traces/             list GET + persist (called by ingest)
-    logs/               list-by-trace GET + persist
-    metrics/            persist only
+    traces/             list GET + store (called by ingest)
+    logs/               list-by-trace GET + store
+    metrics/            store only
     catalog/            GET /api/services
     ingest/             OTLP providers + ingest service
 ```
@@ -167,37 +208,132 @@ apps/api/src/
 features/traces/
   types/            records + HTTP DTOs (no logic)
   repositories/     SQL only
-  services/         list.ts (UI) + persist.ts (ingest)
-  http/             routes + mappers
-  index.ts          register(app) + public persist
+  helpers/          store rules (trace-status) + shared DTO mapping (card)
+  services/         list.ts / facets.ts / with-spans.ts + store.ts
+  routes.ts         HTTP only
+  index.ts          routes + public store
 ```
 
 **Rules**
 
 - SQL lives in `repositories/`. Services call repos, not SQLite.
-- `http/` calls services, not repos.
-- Ingest does **not** have repositories. `features/ingest/services/ingest.ts` parses via a **provider** and calls `traces/logs/metrics` persist.
-- OTLP is a provider (`features/ingest/providers/otlp/`), not the ingest service. Future protocols get `providers/<name>/`.
-- Extract to `src/lib/` only when 2+ features use it (`ids`, `attrs`).
-- Trace summary rules (`normalize-route`, `trace-status`) live next to `traces/services/persist.ts`.
+- `routes.ts` calls services, not repos. List services return HTTP DTOs. Keep Record → DTO in the service file until a second caller needs it.
+- Query params go through `zValidator` + `c.req.valid("query")`. Do not parse `c.req.query()` by hand.
+- Ingest does **not** have repositories. `features/ingest/services/ingest.ts` parses via a **provider** and calls `traces/logs/metrics` store.
+- Extract to `src/shared/` only when 2+ features use it (`db`, `helpers`, `errors`).
+- Trace summary rules (`trace-status`) live in `traces/helpers/`. List services are one `execute` per file (`list.ts`, `facets.ts`, `with-spans.ts`).
 - Import another feature only through its `index.ts`.
+
+### Ingest providers
+
+OTLP is one protocol. `providers/otlp/` must contain **only** OTLP-specific code. Request-level helpers that any protocol would reuse live in `providers/shared/`.
+
+```
+features/ingest/providers/
+  shared/           decode (gzip + maxBytes), media-type
+  errors.ts
+  types.ts
+  resolve.ts        first-match registry
+  otlp/
+    helpers/        ids, values, paths — OTLP data model only
+    mappers/        OTLP request → records
+    json/
+    proto/
+```
+
+**Rules**
+
+- A helper is **generic** if it talks about the HTTP request, not a protocol: gzip / `identity`, body size, `Content-Type` parsing. Put it in `providers/shared/`.
+- A helper is **OTLP-specific** if it encodes the OTLP model: hex-vs-bytes IDs (`parseOtlpId`), `AnyValue` / `KeyValue` / `service.name`, `/v1/traces|logs|metrics`. Put it in `providers/otlp/helpers/`.
+- Do **not** put decode, media-type, or other request plumbing under `otlp/`. A new protocol (Zipkin, Jaeger, …) must reuse `providers/shared/` and add `providers/<name>/` — it should not import OTLP ids or values.
+- OTLP JSON / protobuf stay under `otlp/json/` and `otlp/proto/`. Register the provider in `providers/resolve.ts` (more specific first).
+
+### Naming
+
+Name by **role**, not by restating the module. The file/feature already scopes the noun — don't repeat it in the function (`repo.bulkCreate`, not `repo.insertLogs`).
+
+#### Services
+
+A service file exposes **one** public function: `execute`. The file name is the role.
+
+```ts
+import * as list from "./services/list"
+await list.execute(db, c.req.valid("query"))
+```
+
+Not `list.list`, not `listService`, not `withSpans.withSpans`.
+
+If a file would need two public functions, split it (`list.ts` / `facets.ts` / `with-spans.ts`). Private helpers in the same file are fine (query schema, Record → DTO). List query schemas are the exception to “one public function”: export `query` for `zValidator`.
+
+Write services live in `store.ts` and also export `execute`. The feature `index.ts` re-exports `{ execute as store }` so other features call `store(...)`.
+
+`ingest.ts` is the exception: one file, three signals (`ingestTraces` / `ingestLogs` / `ingestMetrics`). Do not cram unrelated reads into one service file the same way.
+
+#### Repositories
+
+A repository file has many queries. Methods are role verbs: `list` / `get` / `create` / `bulkCreate` / `upsert` / `forTrace` / `facets` / `rebuild`.
+
+Not `listTraces`, not `insertLogs`, not `loadTraceRebuildRows`. Prefix only when the file owns two tables (`upsertSpans` vs `upsert`).
+
+#### Routes
+
+`routes()` at the feature root (not `logsRoutes` in `http/`). HTTP only.
+
+**Mount sub-apps with a prefix.** The sub-app declares relative paths (`/`, `/:id`), never the full URL. Compose in `app.ts`:
+
+```
+app.route("/api/traces", logs)      // GET /:id/logs
+app.route("/api/traces", traces)    // GET /, GET /facets, GET /:id
+app.route("/api/services", catalog) // GET /
+app.route("/v1", ingest)            // POST /traces, /logs, /metrics
+```
+
+Not `app.route("/", routes())` with absolute paths (`/api/traces/:id`). That duplicates prefixes, weakens `c.req.param()` inference, blocks RPC/`hc`, and skips the sub-app `notFound`. When two features share a prefix, mount the more specific sub-app first (`/:id/logs` before `/:id`).
+
+The **callee owns its details**. Callers pass the minimum; encoding, limits, and other request concerns stay inside the owner (`provider.decode(raw)`, not pre-resolved gzip/maxBytes).
+
+#### Query validation
+
+List/query routes use `@hono/zod-validator`. The list service owns the Zod `query` schema (query → filters) and exports it next to `execute`. The route only wires the validator.
+
+```ts
+app.get("/", zValidator("query", list.query, onInvalid), async (c) => {
+  return c.json(await list.execute(c.get("db"), c.req.valid("query")))
+})
+```
+
+**Rules**
+
+- Do **not** parse `c.req.query()` by hand. `execute` receives the validated output (`TraceListFilters`), not a raw `Record<string, string>`.
+- On failure, throw `BadRequestError` from the `zValidator` hook so `onError` still returns `{ error: message }`. Do not return Zod’s default body.
+- Empty query strings are absent (`""` → `undefined`). Missing `limit` defaults in the schema.
 
 ### Data flow — ingest
 
 ```
 POST /v1/traces
-  → ingest/http (gzip, 429, timeout)
+  → ingest/routes (bodyLimit)
   → ingest/services/ingest.ts
-  → providers/otlp (JSON or protobuf → records)
-  → traces/services/persist → traces/repositories → SQLite
+  → providers/otlp/json | otlp/proto (gzip decode, content-type match → records)
+  → traces/services/store → traces/repositories → SQLite
 ```
 
 ### Data flow — read
 
 ```
 GET /api/traces
-  → traces/http → traces/services/list → traces/repositories → SQLite
+  → traces/routes → traces/services/list → traces/repositories → SQLite
 ```
+
+### Error handling
+
+Services throw domain errors. They never build an HTTP `Response`.
+
+- Use `shared/errors` (`AppError` and subclasses). Add a subclass there only if a new status is reused by 2+ features.
+- Do **not** `return c.json({ error }, 4xx)` from a route or service — that bypasses the mapper and mixes two styles.
+- Default: throw and let it bubble to `app.onError` (`{ error: message }` + status; unexpected → 500).
+- Catch in the **HTTP handler** only when `onError` cannot produce the right body. The service still just throws.
+- `zValidator` hooks throw `BadRequestError` — they do not `return c.json(...)`.
 
 SQLite is a single writer. `shared/db/client.ts` serializes all work through `run(fn)`.
 
@@ -207,11 +343,16 @@ SQLite is a single writer. `shared/db/client.ts` serializes all work through `ru
 | --- | --- |
 | Trace list/detail DTO | `features/traces/types/dto.ts` |
 | Trace SQL | `features/traces/repositories/` |
-| Trace persist / summary rules | `features/traces/services/` |
-| OTLP mapping | `features/ingest/providers/otlp/` |
+| Trace store / summary rules | `features/traces/services/store.ts` + `helpers/` |
+| Ingest provider helpers (decode, media-type) | `features/ingest/providers/shared/` |
+| OTLP helpers (ids, values, paths) | `features/ingest/providers/otlp/helpers/` |
+| OTLP mappers | `features/ingest/providers/otlp/mappers/` |
+| OTLP JSON / protobuf | `features/ingest/providers/otlp/json/` / `otlp/proto/` |
 | New ingest protocol | `features/ingest/providers/<name>/` |
-| HTTP route | `features/<name>/http/routes.ts` |
-| Shared id/attr helpers | `src/lib/` |
+| HTTP route | `features/<name>/routes.ts` (relative paths) + prefix in `app.ts` |
+| List query schema | `features/<name>/services/list.ts` (`export const query`) + `zValidator` in `routes.ts` |
+| HTTP DTO mapping | the list service file until a second caller needs it (`helpers/` after that) |
+| Shared helpers | `src/shared/helpers/` |
 | Schema migration | `apps/api/src/shared/db/sql/` + register in `shared/db/migrate.ts` |
 | App config | `src/config.ts` |
 
@@ -253,7 +394,7 @@ Pending migrations apply when the API opens the database. To run them without st
 ```
 just migrate
 # or: pnpm --filter @local-tracer/api migrate
-  → bun src/shared/db/cli.ts → openDb() → initSchema()
+  → bun src/shared/db/cli.ts → migrateDb() → initSchema()
 ```
 
 Boot path:
@@ -273,10 +414,6 @@ sqlite3 ./data/local-tracer.db "SELECT name FROM sqlite_master WHERE type='table
 ```
 
 Expected on a fresh DB: `schema_meta.version = 4`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
-
-**Not a database:** if startup fails because the file is leftover DuckDB, delete `./data/local-tracer.db` (and `.wal` / `-wal` / `-shm`) and restart.
-
-**Legacy schema error:** if startup fails with `legacy MVP database schema detected (traces.id column)`, the DB predates the current migration system. Move or delete `./data/local-tracer.db` and restart.
 
 ### Adding a migration
 

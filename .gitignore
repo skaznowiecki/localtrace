@@ -6,7 +6,6 @@ dist/
 # Data
 data/
 *.db
-*.db.wal
 *.db-wal
 *.db-shm
 

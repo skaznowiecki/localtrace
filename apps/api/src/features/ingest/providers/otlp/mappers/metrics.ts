@@ -1,7 +1,7 @@
-import { toBigInt, toNumber } from "../../../../../lib/attrs"
-import type { Json } from "../../../../../lib/attrs"
+import { toBigInt, toNumber } from "../../../../../shared/helpers"
+import type { Json } from "../../../../../shared/helpers"
 import type { MetricDataPoint } from "../../../../metrics/types/metric"
-import { keyValuesToJson, serviceNameFromResource } from "../values"
+import { keyValuesToJson, serviceNameFromResource } from "../helpers/values"
 
 function asList(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : []

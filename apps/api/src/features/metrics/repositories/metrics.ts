@@ -12,7 +12,7 @@ function metricValues(point: MetricDataPoint): SqlValue[] {
     point.unit ?? "",
     point.metricType,
     point.aggregationTemporality ?? null,
-    point.isMonotonic == null ? null : point.isMonotonic ? 1 : 0,
+    point.isMonotonic ?? null,
     JSON.stringify(point.metadata ?? null),
     point.serviceName,
     JSON.stringify(point.resourceAttributes ?? null),
@@ -38,7 +38,7 @@ function metricValues(point: MetricDataPoint): SqlValue[] {
   ]
 }
 
-export async function insertMetrics(
+export async function bulkCreate(
   conn: DbConn,
   points: MetricDataPoint[],
 ): Promise<void> {

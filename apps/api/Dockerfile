@@ -13,5 +13,7 @@ COPY apps/api/tsconfig.json ./
 ENV LT_DATABASE_PATH=/app/data/local-tracer.db
 ENV LT_API_PORT=4318
 
+RUN mkdir -p /app/data
+
 EXPOSE 4318
 CMD ["bun", "src/index.ts"]

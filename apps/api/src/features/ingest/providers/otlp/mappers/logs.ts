@@ -1,7 +1,7 @@
-import { optionalOtlpId } from "../../../../../lib/ids"
-import { toBigInt } from "../../../../../lib/attrs"
+import { optionalOtlpId } from "../helpers/ids"
+import { toBigInt } from "../../../../../shared/helpers"
 import type { LogRecord } from "../../../../logs/types/log"
-import { anyValueToJson, keyValuesToJson, serviceNameFromResource } from "../values"
+import { anyValueToJson, keyValuesToJson, serviceNameFromResource } from "../helpers/values"
 
 function asList(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : []

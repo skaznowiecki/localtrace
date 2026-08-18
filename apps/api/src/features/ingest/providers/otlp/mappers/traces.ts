@@ -1,9 +1,9 @@
-import { IdError, optionalOtlpId, parseOtlpId } from "../../../../../lib/ids"
-import { toBigInt } from "../../../../../lib/attrs"
-import type { Json } from "../../../../../lib/attrs"
+import { IdError, optionalOtlpId, parseOtlpId } from "../helpers/ids"
+import { toBigInt } from "../../../../../shared/helpers"
+import type { Json } from "../../../../../shared/helpers"
 import type { SpanRecord } from "../../../../traces/types/span"
-import { OtlpError } from "../../../types/otlp"
-import { keyValuesToJson, serviceNameFromResource } from "../values"
+import { IngestError } from "../../errors"
+import { keyValuesToJson, serviceNameFromResource } from "../helpers/values"
 
 function asList(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : []
@@ -46,7 +46,7 @@ export function mapTraceRequest(request: Record<string, unknown>): SpanRecord[] 
           )
         } catch (err) {
           if (err instanceof IdError) {
-            throw new OtlpError(err.message, "validation")
+            throw new IngestError("validation", err.message)
           }
           throw err
         }

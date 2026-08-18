@@ -1,0 +1,1 @@
+export { otlpJsonProvider } from "./provider"

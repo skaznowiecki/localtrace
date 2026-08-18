@@ -1,0 +1,1 @@
+export { otlpProtoProvider } from "./provider"

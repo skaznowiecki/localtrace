@@ -1,25 +1,29 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
-import type { AppEnv, IngestGate } from "./app-env"
+import { HTTPException } from "hono/http-exception"
+import { logger } from "hono/logger"
+import type { AppEnv } from "./app-env"
 import type { Config } from "./config"
 import type { Db } from "./shared/db"
-import { AppError } from "./lib/errors"
-import { register as registerTraces } from "./features/traces"
-import { register as registerLogs } from "./features/logs"
-import { register as registerCatalog } from "./features/catalog"
-import { register as registerIngest } from "./features/ingest"
+import { AppError } from "./shared/errors"
+import { log, setLevel } from "./shared/helpers"
+import { routes as catalog } from "./features/catalog"
+import { routes as ingest } from "./features/ingest"
+import { routes as logs } from "./features/logs"
+import { routes as traces } from "./features/traces"
 
 export function createApp(deps: {
   db: Db
   config: Config
-  ingestGate: IngestGate
 }): Hono<AppEnv> {
+  setLevel(deps.config.logLevel)
   const app = new Hono<AppEnv>()
+
+  app.use(logger(log))
 
   app.use("*", async (c, next) => {
     c.set("db", deps.db)
     c.set("config", deps.config)
-    c.set("ingestGate", deps.ingestGate)
     await next()
   })
 
@@ -33,19 +37,22 @@ export function createApp(deps: {
   )
 
   app.onError((err, c) => {
+    if (err instanceof HTTPException) return err.getResponse()
     if (err instanceof AppError) {
-      return c.json({ error: err.message }, err.status as 400 | 404 | 500)
+      return c.json({ error: err.message }, err.status)
     }
-    console.error(err)
-    return c.json({ error: err.message || "internal error" }, 500)
+    log.error(err)
+    return c.json({ error: "internal error" }, 500)
   })
+
+  app.notFound((c) => c.json({ error: "not found" }, 404))
 
   app.get("/health", (c) => c.json({ status: "ok" }))
 
-  registerCatalog(app)
-  registerLogs(app)
-  registerTraces(app)
-  registerIngest(app)
+  app.route("/api/traces", logs())
+  app.route("/api/traces", traces())
+  app.route("/api/services", catalog())
+  app.route("/v1", ingest(deps.config.otlpMaxBodyBytes))
 
   return app
 }

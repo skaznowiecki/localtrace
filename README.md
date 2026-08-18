@@ -20,7 +20,7 @@ Open [http://localhost:8080](http://localhost:8080).
 
 ### What `just dev` does
 
-1. **Runs the API with hot reload** — `bun --watch` on `apps/api`.
+1. **Runs the API with hot reload** — `bun --hot` on `apps/api` (handler swap, same port).
 2. **Runs the web UI** — `pnpm --filter @local-tracer/web dev`.
 
 SQLite WAL allows concurrent readers of the live file. Inspect with DBeaver or `sqlite3` while the API is running:
@@ -55,5 +55,4 @@ React → Bun API (Hono) → SQLite
 | `LT_DATABASE_PATH` | `./data/local-tracer.db` | SQLite file path |
 | `LT_API_PORT` | `4318` | API + OTLP HTTP server port |
 | `LT_OTLP_MAX_BODY_BYTES` | `16777216` | Max decompressed OTLP request body |
-| `LT_OTLP_MAX_IN_FLIGHT` | `4` | Concurrent OTLP ingest requests |
-| `LT_LOG_LEVEL` | `info` | Log level |
+| `LT_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` \| `silent` |
