@@ -16,7 +16,7 @@ just migrate
 just dev
 ```
 
-Open [http://localhost:8080](http://localhost:8080).
+Open [http://localhost:4371](http://localhost:4371).
 
 ### What `just dev` does
 
@@ -29,7 +29,7 @@ SQLite WAL allows concurrent readers of the live file. Inspect with DBeaver or `
 ./data/local-tracer.db
 ```
 
-Apply schema without starting the server:
+Wipe the local DB and recreate schema (data is discarded):
 
 ```
 just migrate
@@ -47,6 +47,7 @@ docker compose up
 React → Bun API (Hono) → SQLite
          ↑ OTLP /v1/traces|logs|metrics
          ↑ Sentry POST /api/:projectId/envelope
+         ↑ Datadog Agent HTTP /info /v0.x/traces /v1/input /api/v2/logs /api/v1/series
 ```
 
 ## Sentry DSN
@@ -70,11 +71,31 @@ Ingested:
 
 Discarded: sessions, attachments, profiles, replays, metrics, check-ins, and other envelope item types.
 
+## Datadog Agent
+
+Point `dd-trace` / `ddtrace` at this process (same port as OTLP, default `4318`). No extra 8126 listener.
+
+```bash
+export DD_TRACE_AGENT_URL=http://127.0.0.1:4318
+# aliases:
+# DD_AGENT_HOST=127.0.0.1  DD_TRACE_AGENT_PORT=4318
+```
+
+The API logs this URL on startup. Implemented:
+
+- `GET /info` — discovery (`/v0.3`–`/v0.7/traces` only; `/v1.0/traces` is not advertised)
+- `PUT`/`POST` `/v0.3/traces` (empty 200) and `/v0.4` `/v0.5` `/v0.7/traces` (JSON or msgpack; sampling `rate_by_service`)
+- `POST` `/v1/input`, `/v1/input/:apiKey`, `/api/v2/logs` — HTTP logs
+- `POST` `/api/v1/series`, `/api/v2/series` — HTTP metrics
+- Stubs `200`: `/v0.4/services`, `/v0.6/stats`, `/v0.7/config`, telemetry proxy
+
+DogStatsD UDP 8125 is out of scope.
+
 ## MCP (agents)
 
 With the API running (`just dev`), agents talk to Streamable HTTP at [http://127.0.0.1:4318/mcp](http://127.0.0.1:4318/mcp).
 
-This repo wires Cursor via [`.cursor/mcp.json`](.cursor/mcp.json). Tools call the same services as `GET /api/traces`, `/api/traces/:id`, `/sql`, `/logs`, `/api/services`, and `/facets`.
+This repo wires Cursor via [`.cursor/mcp.json`](.cursor/mcp.json). Tools call the same services as `GET /api/traces`, `/api/traces/:id`, `/sql`, `/logs`, `/api/services`, and `/facets`. `local-tracer-db` is a stdio SQLite MCP on `./data/local-tracer.db`.
 
 ```bash
 npx @modelcontextprotocol/inspector http://127.0.0.1:4318/mcp
@@ -86,5 +107,5 @@ npx @modelcontextprotocol/inspector http://127.0.0.1:4318/mcp
 |----------|---------|-------------|
 | `LT_DATABASE_PATH` | `./data/local-tracer.db` | SQLite file path |
 | `LT_API_PORT` | `4318` | API + OTLP HTTP server port |
-| `LT_OTLP_MAX_BODY_BYTES` | `16777216` | Max decompressed ingest body (OTLP and Sentry) |
+| `LT_OTLP_MAX_BODY_BYTES` | `16777216` | Max decompressed ingest body (OTLP, Sentry, Datadog) |
 | `LT_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` \| `silent` |

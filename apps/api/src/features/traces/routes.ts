@@ -25,9 +25,20 @@ export function routes(): Hono<AppEnv> {
     return c.json(await sql.execute(c.get("db"), c.req.valid("param").id))
   })
 
-  app.get("/:id", zValidator("param", withSpansSchema.param, onInvalid), async (c) => {
-    return c.json(await withSpans.execute(c.get("db"), c.req.valid("param").id))
-  })
+  app.get(
+    "/:id",
+    zValidator("param", withSpansSchema.param, onInvalid),
+    zValidator("query", withSpansSchema.query, onInvalid),
+    async (c) => {
+      return c.json(
+        await withSpans.execute(
+          c.get("db"),
+          c.req.valid("param").id,
+          c.req.valid("query").raw ?? false,
+        ),
+      )
+    },
+  )
 
   return app
 }

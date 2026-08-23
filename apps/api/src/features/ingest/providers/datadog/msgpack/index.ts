@@ -1,0 +1,1 @@
+export { datadogMsgpackProvider } from "./provider"

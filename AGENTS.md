@@ -71,6 +71,7 @@ apps/web/src/features/traces/components/span-overview/
   strategies/
     index.ts            # ordered registry (first match wins)
     sql.tsx             # postgres / mysql / sqlite / sql
+    clickhouse.tsx      # clickhouse (often no db.statement — Datadog omits the SQL)
     prisma.tsx / redis.tsx / mongo.tsx / s3.tsx / openrouter.tsx / express.tsx / http.tsx
 ```
 
@@ -213,7 +214,7 @@ apps/api/src/
     logs/               list-by-trace GET + store + tools/
     metrics/            store only
     catalog/            GET /api/services + tools/
-    ingest/             OTLP + Sentry providers + ingest service
+    ingest/             OTLP + Sentry + Datadog providers + ingest service
     mcp/                Streamable HTTP /mcp — registers each feature's tools/
 ```
 
@@ -377,6 +378,17 @@ POST /api/:projectId/envelope
   → ingest/services/envelope.ts
   → providers/sentry (envelope parse → traces + logs)
   → traces/logs store → SQLite
+
+PUT|POST /v0.4/traces  (also /v0.3 /v0.5 /v0.7; GET /info)
+  → mountAgent on parent app (bodyLimit)
+  → ingest/services/ingest.ts
+  → providers/datadog/json | datadog/msgpack
+  → traces/services/store → traces/repositories → SQLite
+
+POST /v1/input  POST /api/v2/logs  POST /api/v1/series
+  → ingest /v1 or /api routes (bodyLimit)
+  → providers/datadog/logs | datadog/metrics
+  → logs/metrics store → SQLite
 ```
 
 ### Data flow — read
@@ -420,6 +432,7 @@ SQLite is a single writer. `shared/db/client.ts` serializes all work through `ru
 | OTLP mappers | `features/ingest/providers/otlp/mappers/` |
 | OTLP JSON / protobuf | `features/ingest/providers/otlp/json/` / `otlp/proto/` |
 | Sentry envelope | `features/ingest/providers/sentry/` |
+| Datadog Agent HTTP | `features/ingest/providers/datadog/` |
 | New ingest protocol | `features/ingest/providers/<name>/` |
 | HTTP route | `features/<name>/routes.ts` (relative paths) + prefix in `app.ts` |
 | Validation schema | `features/<name>/schemas/<role>.ts` (`query` / `param` / `input`); `shared/helpers` if 2+ features; `zValidator` in `routes.ts` |
@@ -431,7 +444,7 @@ SQLite is a single writer. `shared/db/client.ts` serializes all work through `ru
 
 ## SQLite schema migrations
 
-Migrations are versioned SQL files applied sequentially at startup (and via `just migrate`). Version is tracked in `schema_meta.version`.
+Migrations are versioned SQL files applied sequentially at startup. Version is tracked in `schema_meta.version`. `just migrate` always wipes the local DB and recreates it.
 
 ```
 apps/api/src/shared/db/
@@ -450,18 +463,18 @@ apps/api/src/shared/db/
 
 This is a **local-only** tracer. Data is disposable. **Never** design for old rows, old columns, or old API shapes.
 
-- **Wipe and restart.** Delete `./data/local-tracer.db` (and `-wal` / `-shm`) and re-ingest. Do this for any schema or denormalized-field change.
+- **`just migrate` wipes and recreates.** It deletes `LT_DATABASE_PATH` (and `-wal` / `-shm`) then applies `001_*.sql` from scratch. Do this for any schema or denormalized-field change. Do not `rm` the DB files by hand.
 - **Edit `001_*.sql` in place.** Do not add `002_…` / extra columns / dual fields just to keep existing DBs working (`http_url` path + `http_full_url`, optional DTO leftovers, frontend `??` fallbacks for missing ingest fields).
 - **No backfills. No dual-write. No compat DTOs.** Change the field meaning, update callers, wipe.
 - After a wipe, expected: `schema_meta.version = 1`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
 
 ```
-rm -f ./data/local-tracer.db ./data/local-tracer.db-wal ./data/local-tracer.db-shm
-# restart API — or: just migrate
+just migrate
 ```
 
 ### Rules
 
+- **`just migrate` always wipes and recreates the DB.** Never `rm` the SQLite files by hand. Stop the API first if it is running.
 - **All DDL goes in `apps/api/src/shared/db/sql/`**. Register files in `MIGRATIONS` in `shared/db/migrate.ts`.
 - Migrations must be **sequential** (v1, v2, …). The runner rejects gaps. Prefer a single v1 while this stays a local app.
 - Each `.sql` file can contain multiple statements separated by `;`. Do not put semicolons inside string literals.
@@ -469,15 +482,15 @@ rm -f ./data/local-tracer.db ./data/local-tracer.db-wal ./data/local-tracer.db-s
 
 ### Running migrations
 
-Pending migrations apply when the API opens the database. To run them without starting the server:
+`just migrate` always deletes the local DB and recreates it. Stop the API first if it is running.
 
 ```
 just migrate
-# or: pnpm --filter @local-tracer/api migrate
+  → rm LT_DATABASE_PATH (+ -wal / -shm)
   → bun src/shared/db/cli.ts → migrateDb() → initSchema()
 ```
 
-Boot path:
+Boot path (applies pending migrations only; does **not** wipe):
 
 ```
 bun src/index.ts   # or just dev / pnpm --filter @local-tracer/api dev
@@ -485,7 +498,8 @@ bun src/index.ts   # or just dev / pnpm --filter @local-tracer/api dev
 ```
 
 - **Database path:** `LT_DATABASE_PATH` env var, default `./data/local-tracer.db`.
-- **Pending migrations** apply on startup; already-applied ones are skipped (idempotent).
+- **`just migrate`:** always wipe + recreate. Data is discarded; re-ingest after.
+- **API boot / `pnpm --filter @local-tracer/api migrate`:** apply pending versions only; already-applied ones are skipped.
 - **Verify** with sqlite3 against the live file (WAL allows concurrent readers):
 
 ```bash
@@ -497,5 +511,5 @@ sqlite3 ./data/local-tracer.db "SELECT name FROM sqlite_master WHERE type='table
 
 1. Stop the API.
 2. Edit `001_*.sql` (and types / store / DTOs to match).
-3. Delete `./data/local-tracer.db` (+ WAL/SHM).
-4. Restart — migrations run on a fresh DB. Re-ingest.
+3. `just migrate` — wipes the DB and recreates schema.
+4. Restart. Re-ingest.

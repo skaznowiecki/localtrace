@@ -1,6 +1,12 @@
 import type { DbConn, SqlValue } from "@shared/db"
 import { INSERT_CHUNK, valuePlaceholders } from "@shared/db"
-import { emptyToUndef, parseJson, toBigInt, toNumber } from "@shared/helpers"
+import {
+  emptyToUndef,
+  parseJson,
+  toBigInt,
+  toNumber,
+  type IngestProviderName,
+} from "@shared/helpers"
 import { sqlExpr as severitySql } from "../helpers/severity"
 import type {
   FacetValue,
@@ -40,6 +46,7 @@ function mapRow(row: Record<string, unknown>): LogRecord {
     flags: toNumber(row.flags),
     traceId: emptyToUndef(row.trace_id as string | null),
     spanId: emptyToUndef(row.span_id as string | null),
+    ingestProvider: (row.ingest_provider as IngestProviderName) ?? "otlp",
   }
 }
 
@@ -49,7 +56,7 @@ const LOG_SELECT = `SELECT id, time_ns, observed_time_ns, severity_number, sever
             scope_name, scope_version, scope_attributes,
             scope_dropped_attributes_count, scope_schema_url,
             attributes, dropped_attributes_count, flags,
-            trace_id, span_id
+            trace_id, span_id, ingest_provider
      FROM logs`
 
 const SORT_SQL: Record<LogSortField, string> = {
@@ -67,9 +74,9 @@ function orderBy(filters: LogListFilters): string {
   const col = SORT_SQL[filters.sort]
   const dir = ORDER_SQL[filters.order]
   if (filters.sort === "date") {
-    return `ORDER BY ${col} ${dir} LIMIT ?`
+    return `ORDER BY ${col} ${dir} LIMIT ? OFFSET ?`
   }
-  return `ORDER BY ${col} ${dir}, time_ns DESC LIMIT ?`
+  return `ORDER BY ${col} ${dir}, time_ns DESC LIMIT ? OFFSET ?`
 }
 
 function likeContains(value: string): string {
@@ -122,7 +129,7 @@ export async function list(
   }
 
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
-  params.push(filters.limit)
+  params.push(filters.limit, filters.offset)
   const rows = await conn.all(
     `${LOG_SELECT}${where} ${orderBy(filters)}`,
     params,
@@ -156,7 +163,7 @@ export async function facets(conn: DbConn): Promise<LogFacets> {
   return { services, severities }
 }
 
-const LOG_COLUMNS = 21
+const LOG_COLUMNS = 22
 
 function logValues(log: LogRecord): SqlValue[] {
   return [
@@ -181,6 +188,7 @@ function logValues(log: LogRecord): SqlValue[] {
     log.flags,
     log.traceId ?? "",
     log.spanId ?? "",
+    log.ingestProvider ?? "otlp",
   ]
 }
 
@@ -198,7 +206,7 @@ export async function bulkCreate(
                         resource_dropped_attributes_count, resource_schema_url,
                         scope_name, scope_version, scope_attributes, scope_dropped_attributes_count,
                         scope_schema_url, attributes, dropped_attributes_count, flags,
-                        trace_id, span_id
+                        trace_id, span_id, ingest_provider
                     ) VALUES ${valuePlaceholders(chunk.length, LOG_COLUMNS)}`,
       chunk.flatMap(logValues),
     )

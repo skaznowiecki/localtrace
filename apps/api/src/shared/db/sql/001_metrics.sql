@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     exemplars                TEXT,
     flags                    INTEGER NOT NULL,
     data                     TEXT NOT NULL,
+    ingest_provider          TEXT NOT NULL,
     received_at              TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

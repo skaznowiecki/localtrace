@@ -234,9 +234,11 @@ export function isFilterValueSelected(
 export function filtersToSearchParams(
   filters: LogQueryFilters,
   limit = 100,
+  offset = 0,
 ): URLSearchParams {
   const params = new URLSearchParams()
   params.set("limit", String(limit))
+  if (offset > 0) params.set("offset", String(offset))
   if (filters.service) params.set("service", filters.service)
   if (filters.severity) params.set("severity", filters.severity)
   if (filters.message) params.set("message", filters.message)

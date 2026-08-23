@@ -83,11 +83,17 @@ function HttpRequestsBody({ meta }: { meta: HttpSpanMeta }) {
       {meta.queryParams.length > 0 ? (
         <>
           <Subheading>Query Parameters</Subheading>
-          {meta.queryParams.map((param, i) => (
-            <KvRow key={`${param.key}-${i}`} label={param.key}>
-              {param.value}
-            </KvRow>
-          ))}
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 text-[13px]">
+            {meta.queryParams.map((param, i) => (
+              <KvRow
+                key={`${param.key}-${i}`}
+                label={param.key}
+                className="contents"
+              >
+                {param.value}
+              </KvRow>
+            ))}
+          </div>
         </>
       ) : null}
     </div>

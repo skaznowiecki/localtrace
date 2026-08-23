@@ -8,9 +8,9 @@ export function register(server: McpServer, db: Db) {
   server.registerTool(
     "get_trace_sql",
     {
-      title: "Get trace SQL",
+      title: "Get trace DB queries",
       description:
-        "SQL queries in a trace (db.statement / db.query.text), sorted by duration. Empty if the trace has no DB spans.",
+        "DB queries in a trace (Postgres, MySQL, SQLite, ClickHouse, …), sorted by duration. Uses db.statement / db.query.text when present; ClickHouse often only has db.operation. Empty if the trace has no DB spans.",
       inputSchema: input,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
     },

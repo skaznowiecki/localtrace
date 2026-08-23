@@ -18,10 +18,22 @@ export type IngestBatch = {
 
 type IngestProviderBase = {
   id: string
-  parseTraces: (body: Uint8Array) => Promise<SpanRecord[]>
-  parseLogs: (body: Uint8Array) => Promise<LogRecord[]>
-  parseMetrics: (body: Uint8Array) => Promise<MetricDataPoint[]>
-  parseBatch?: (body: Uint8Array) => Promise<IngestBatch>
+  parseTraces: (
+    body: Uint8Array,
+    ctx?: IngestRequestContext,
+  ) => Promise<SpanRecord[]>
+  parseLogs: (
+    body: Uint8Array,
+    ctx?: IngestRequestContext,
+  ) => Promise<LogRecord[]>
+  parseMetrics: (
+    body: Uint8Array,
+    ctx?: IngestRequestContext,
+  ) => Promise<MetricDataPoint[]>
+  parseBatch?: (
+    body: Uint8Array,
+    ctx?: IngestRequestContext,
+  ) => Promise<IngestBatch>
   successResponse: (eventId?: string) => Response
 }
 

@@ -1,4 +1,3 @@
-export { PostgresIcon } from "./PostgresIcon"
-export { PrismaIcon } from "./PrismaIcon"
-export { S3Icon } from "./S3Icon"
+export { BrandIcon } from "./BrandIcon"
+export { MemcachedIcon } from "./MemcachedIcon"
 export { SpanVendorIcon } from "./SpanVendorIcon"

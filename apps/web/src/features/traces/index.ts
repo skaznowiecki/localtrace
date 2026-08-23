@@ -1,9 +1,11 @@
 export { TracesTable } from "./components/list/TracesTable"
 export { TraceLiveHeader } from "./components/list/TraceLiveHeader"
 export { ServiceBadge } from "./components/display/ServiceBadge"
+export { SpanVendorIcon } from "./components/display/brand-icons"
 export { AttributeTree, isAttributeTreeEmpty } from "./components/detail/AttributeTree"
 export { TraceTimeRangeProvider } from "./context/TraceTimeRangeProvider"
 export { useTraceTimeRange } from "./hooks/useTraceTimeRange"
+export { resolveBrandFromName } from "./lib/span-vendor"
 export {
   isTraceSortField,
   isTraceSortOrder,

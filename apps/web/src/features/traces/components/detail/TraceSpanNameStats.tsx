@@ -14,7 +14,9 @@ import {
   aggregateSpanNameStats,
   type SpanNameStat,
 } from "../../lib/span-name-stats"
+import { resolveSpanVendor } from "../../lib/span-vendor"
 import type { Span } from "../../types"
+import { SpanVendorIcon } from "../display/brand-icons"
 import { SpanName } from "../span-name"
 
 type TraceSpanNameStatsProps = {
@@ -43,16 +45,19 @@ function PctBar({ stat }: { stat: SpanNameStat }) {
 
 type StatRowProps = {
   stat: SpanNameStat
+  span: Span | undefined
   isSelected: boolean
   onSelectSpan?: (spanId: string) => void
 }
 
 const StatRow = memo(function StatRow({
   stat,
+  span,
   isSelected,
   onSelectSpan,
 }: StatRowProps) {
   const clickable = onSelectSpan != null
+  const vendor = span ? resolveSpanVendor(span) : null
 
   return (
     <TableRow
@@ -68,11 +73,15 @@ const StatRow = memo(function StatRow({
     >
       <TableCell className="max-w-md px-2 py-1.5">
         <span className="flex min-w-0 items-center gap-2">
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: stat.color }}
-            aria-hidden
-          />
+          {vendor ? (
+            <SpanVendorIcon vendor={vendor} className="size-3.5" />
+          ) : (
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: stat.color }}
+              aria-hidden
+            />
+          )}
           <span className="min-w-0 truncate text-[13px] text-foreground">
             <SpanName name={stat.name} />
           </span>
@@ -94,6 +103,7 @@ const StatRow = memo(function StatRow({
   )
 }, (prev, next) =>
   prev.stat === next.stat &&
+  prev.span === next.span &&
   prev.isSelected === next.isSelected &&
   prev.onSelectSpan === next.onSelectSpan,
 )
@@ -104,6 +114,10 @@ export function TraceSpanNameStats({
   onSelectSpan,
 }: TraceSpanNameStatsProps) {
   const stats = useMemo(() => aggregateSpanNameStats(spans), [spans])
+  const spansById = useMemo(
+    () => new Map(spans.map((span) => [span.id, span])),
+    [spans],
+  )
 
   if (spans.length === 0 || stats.length === 0) {
     return (
@@ -140,6 +154,7 @@ export function TraceSpanNameStats({
               <StatRow
                 key={stat.name}
                 stat={stat}
+                span={spansById.get(stat.representativeSpanId)}
                 isSelected={isSelected}
                 onSelectSpan={onSelectSpan}
               />

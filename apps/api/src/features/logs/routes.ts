@@ -14,8 +14,15 @@ export function routes(): Hono<AppEnv> {
   app.get(
     "/:id/logs",
     zValidator("param", forTraceSchema.param, onInvalid),
+    zValidator("query", forTraceSchema.query, onInvalid),
     async (c) => {
-      return c.json(await forTrace.execute(c.get("db"), c.req.valid("param").id))
+      return c.json(
+        await forTrace.execute(
+          c.get("db"),
+          c.req.valid("param").id,
+          c.req.valid("query").raw ?? false,
+        ),
+      )
     },
   )
 

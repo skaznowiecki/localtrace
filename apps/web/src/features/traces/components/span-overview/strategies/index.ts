@@ -1,4 +1,5 @@
 import type { SpanOverviewStrategy } from "../types"
+import { clickhouseOverviewStrategy } from "./clickhouse"
 import { expressOverviewStrategy } from "./express"
 import { httpOverviewStrategy } from "./http"
 import { mongoOverviewStrategy } from "./mongo"
@@ -13,6 +14,7 @@ export const spanOverviewStrategies: SpanOverviewStrategy[] = [
   prismaOverviewStrategy,
   redisOverviewStrategy,
   mongoOverviewStrategy,
+  clickhouseOverviewStrategy,
   sqlOverviewStrategy,
   s3OverviewStrategy,
   openrouterOverviewStrategy,

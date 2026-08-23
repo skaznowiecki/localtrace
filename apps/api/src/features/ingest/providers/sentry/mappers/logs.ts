@@ -91,9 +91,9 @@ export function mapEvent(event: Record<string, unknown>): LogRecord {
   const culprit = asString(event.culprit)
   if (culprit) attributes.culprit = culprit
   const method = asString(request.method)
-  if (method) attributes["http.request.method"] = method.toUpperCase()
+  if (method) attributes["http.method"] = method.toUpperCase()
   const url = asString(request.url)
-  if (url) attributes["url.full"] = url
+  if (url) attributes["http.url"] = url
   const userId = asString(user.id)
   if (userId) attributes["user.id"] = userId
   const email = asString(user.email)

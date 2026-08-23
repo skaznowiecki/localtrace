@@ -10,6 +10,7 @@ import {
   type TraceFilterKey,
   type TraceQueryFilters,
 } from "../../lib/trace-filter"
+import { ServiceBadge } from "../display/ServiceBadge"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
 import { TraceFacetSection } from "./TraceFacetSection"
@@ -86,7 +87,7 @@ export function TraceFacetPanel({
           {facets.services.map((service) => (
             <TraceFacetValue
               key={service.value}
-              label={service.value}
+              label={<ServiceBadge service={service.value} />}
               title={service.value}
               count={service.count}
               selected={isFilterValueSelected(filters, "service", service.value)}

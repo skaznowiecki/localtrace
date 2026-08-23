@@ -1,0 +1,1 @@
+export { datadogLogsProvider } from "./provider"

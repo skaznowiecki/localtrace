@@ -24,8 +24,10 @@ import {
   formatTraceDate,
 } from "@/lib/utils"
 
+import { resolveBrandFromName } from "../../lib/span-vendor"
 import { getServiceColor } from "../../service-colors"
 import type { TraceListItem, TraceStatus } from "../../types"
+import { SpanVendorIcon } from "../display/brand-icons"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpPath } from "../display/HttpPath"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
@@ -67,6 +69,7 @@ export function TraceDrawerHeader({
   onFullscreenChange,
 }: TraceDrawerHeaderProps) {
   const [copied, setCopied] = useState(false)
+  const brand = resolveBrandFromName(trace.rootService)
   const serviceColor = getServiceColor(trace.rootService)
   const displayUrl = trace.httpUrl
 
@@ -93,12 +96,16 @@ export function TraceDrawerHeader({
     >
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm"
-            style={{ backgroundColor: serviceColor }}
-          >
-            <MonitorIcon className="size-3 text-white" />
-          </span>
+          {brand ? (
+            <SpanVendorIcon vendor={brand} className="size-5" />
+          ) : (
+            <span
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm"
+              style={{ backgroundColor: serviceColor }}
+            >
+              <MonitorIcon className="size-3 text-white" />
+            </span>
+          )}
 
           <SheetTitle className="sr-only">{trace.name}</SheetTitle>
           <SheetDescription className="sr-only">

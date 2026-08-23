@@ -1,5 +1,5 @@
 import type { Db } from "@shared/db"
-import { normalizeRoutePath } from "@shared/helpers"
+import { normalizeRoutePath, overlayAttributes } from "@shared/helpers"
 import type { SpanRecord, TraceSummary } from "../types/span"
 import * as repo from "../repositories/traces"
 import {
@@ -13,7 +13,7 @@ function summaryFromRebuild(row: repo.RebuildRow): TraceSummary {
   const root = {
     name: row.rootName ?? "",
     statusCode: row.rootStatusCode,
-    attributes: row.rootAttributes,
+    attributes: overlayAttributes(row.rootIngestProvider, row.rootAttributes),
   }
   const http = extractHttpFields(root)
   const path = extractHttpUrl(root)

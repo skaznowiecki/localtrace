@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ServiceBadge } from "@/features/traces"
 
 import type { LogFacets } from "../../api/logs.api"
 import {
@@ -125,7 +126,7 @@ export function LogFacetPanel({
           {facets.services.map((service) => (
             <LogFacetValue
               key={service.value}
-              label={service.value}
+              label={<ServiceBadge service={service.value} />}
               title={service.value}
               count={service.count}
               selected={isFilterValueSelected(filters, "service", service.value)}

@@ -1,3 +1,7 @@
+import { datadogJsonProvider } from "./datadog/json"
+import { datadogLogsProvider } from "./datadog/logs"
+import { datadogMetricsProvider } from "./datadog/metrics"
+import { datadogMsgpackProvider } from "./datadog/msgpack"
 import { otlpJsonProvider } from "./otlp/json"
 import { otlpProtoProvider } from "./otlp/proto"
 import { sentryProvider } from "./sentry"
@@ -10,6 +14,10 @@ import type { IngestProvider, IngestRequestContext } from "./types"
  * then register it here (more specific first).
  */
 export const ingestProviders: IngestProvider[] = [
+  datadogMsgpackProvider,
+  datadogJsonProvider,
+  datadogLogsProvider,
+  datadogMetricsProvider,
   sentryProvider,
   otlpProtoProvider,
   otlpJsonProvider,

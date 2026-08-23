@@ -17,11 +17,16 @@ export function KvRow({ label, children, copyValue, className }: KvRowProps) {
     copyValue ?? (typeof children === "string" ? children : undefined)
 
   return (
-    <div className={cn("flex items-start gap-3 py-0.5 text-[13px]", className)}>
-      <span className="w-[130px] shrink-0 font-bold text-foreground/80">
+    <div
+      className={cn(
+        "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 py-0.5 text-[13px]",
+        className,
+      )}
+    >
+      <span className="min-w-[130px] max-w-[min(16rem,45%)] break-all font-bold text-foreground/80">
         {label}
       </span>
-      <div className="min-w-0 flex-1 break-all text-sky-700 dark:text-sky-400">
+      <div className="min-w-0 break-all text-sky-700 dark:text-sky-400">
         {clipboard != null ? (
           <Copyable value={clipboard}>{children}</Copyable>
         ) : (

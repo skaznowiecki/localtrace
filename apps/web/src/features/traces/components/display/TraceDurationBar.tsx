@@ -5,8 +5,10 @@ import {
 } from "@/components/ui/tooltip"
 import { cn, formatSpanDuration } from "@/lib/utils"
 
+import { resolveBrandFromName } from "../../lib/span-vendor"
 import { getServiceColor } from "../../service-colors"
 import type { TraceBreakdownItem } from "../../types"
+import { SpanVendorIcon } from "./brand-icons"
 
 type TraceDurationBarProps = {
   breakdown: TraceBreakdownItem[] | null
@@ -65,23 +67,31 @@ export function TraceDurationBar({
         align="start"
         className="max-w-xs flex-col items-stretch gap-1 px-3 py-2"
       >
-        {breakdown.map((item) => (
-          <p
-            key={item.name}
-            className="flex items-center justify-between gap-4 font-mono text-[11px] tabular-nums"
-          >
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span
-                className="size-2 shrink-0 rounded-sm"
-                style={{ backgroundColor: getServiceColor(item.name) }}
-              />
-              <span className="truncate">{item.name}</span>
-            </span>
-            <span className="shrink-0 text-background/80">
-              {formatSpanDuration(item.durationMs)} · {Math.round(item.share * 100)}%
-            </span>
-          </p>
-        ))}
+        {breakdown.map((item) => {
+          const brand = resolveBrandFromName(item.name)
+          return (
+            <p
+              key={item.name}
+              className="flex items-center justify-between gap-4 font-mono text-[11px] tabular-nums"
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                {brand ? (
+                  <SpanVendorIcon vendor={brand} className="size-3" />
+                ) : (
+                  <span
+                    className="size-2 shrink-0 rounded-sm"
+                    style={{ backgroundColor: getServiceColor(item.name) }}
+                  />
+                )}
+                <span className="truncate">{item.name}</span>
+              </span>
+              <span className="shrink-0 text-background/80">
+                {formatSpanDuration(item.durationMs)} ·{" "}
+                {Math.round(item.share * 100)}%
+              </span>
+            </p>
+          )
+        })}
       </TooltipContent>
     </Tooltip>
   )

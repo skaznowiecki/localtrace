@@ -1,4 +1,5 @@
 import * as z from "zod"
+import { rawInput } from "@shared/helpers"
 import { SEVERITY_BUCKETS } from "../helpers/severity"
 import type { LogListFilters, LogSortField, LogSortOrder } from "../types/log"
 
@@ -110,11 +111,19 @@ export const input = z.object({
     .describe("RFC3339 timestamp; only logs after this"),
   sort: sortField.optional().describe("Sort column (default date)"),
   order: sortOrder.optional().describe("Sort direction (default desc)"),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Number of logs to skip (default 0)"),
+  raw: rawInput,
 })
 
 export function filters(args: z.infer<typeof input>): LogListFilters {
   return {
     limit: args.limit ?? 50,
+    offset: args.offset ?? 0,
     sort: args.sort ?? DEFAULT_SORT,
     order: args.order ?? DEFAULT_ORDER,
     service: args.service,
@@ -123,6 +132,7 @@ export function filters(args: z.infer<typeof input>): LogListFilters {
     traceId: args.trace_id ? parseTraceIdFilter(args.trace_id) : undefined,
     sinceNs:
       args.since != null ? BigInt(Date.parse(args.since)) * 1_000_000n : undefined,
+    raw: args.raw,
   }
 }
 
@@ -137,14 +147,21 @@ export const query = z
     since: qstr,
     sort: qstr,
     order: qstr,
+    offset: qstr,
+    raw: qstr,
   })
   .transform((value, ctx): LogListFilters => {
     const limit = parseIntParam(value.limit, ctx, "limit")
     if (limit != null && (limit < 1 || limit > 100)) {
       ctx.addIssue({ code: "custom", path: ["limit"], message: "invalid limit" })
     }
+    const offset = parseIntParam(value.offset, ctx, "offset")
+    if (offset != null && offset < 0) {
+      ctx.addIssue({ code: "custom", path: ["offset"], message: "invalid offset" })
+    }
     return {
       limit: limit ?? 50,
+      offset: offset ?? 0,
       sort: parseEnumParam(value.sort, sortField, ctx, "sort") ?? DEFAULT_SORT,
       order: parseEnumParam(value.order, sortOrder, ctx, "order") ?? DEFAULT_ORDER,
       service: value.service,
@@ -152,5 +169,6 @@ export const query = z
       message: value.message ?? value.body,
       traceId: parseTraceIdFilter(value.trace_id),
       sinceNs: parseSinceNs(value.since, ctx),
+      raw: value.raw === "true" || value.raw === "1",
     }
   })

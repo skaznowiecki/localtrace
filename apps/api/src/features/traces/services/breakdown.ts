@@ -1,4 +1,5 @@
 import type { Db } from "@shared/db"
+import { overlayAttributes } from "@shared/helpers"
 import { aggregate, serialize, type SpanLite } from "../helpers/breakdown"
 import * as repo from "../repositories/traces"
 
@@ -21,7 +22,7 @@ export async function execute(db: Db): Promise<void> {
           parentSpanId: span.parentSpanId,
           name: span.name,
           kind: span.kind,
-          attributes: span.attributes,
+          attributes: overlayAttributes(span.ingestProvider, span.attributes),
           startTimeNs: span.startTimeNs,
           durationNs: span.durationNs,
         })

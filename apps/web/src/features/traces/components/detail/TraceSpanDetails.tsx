@@ -180,7 +180,7 @@ export function TraceSpanDetails({
               value="sql-queries"
               className="relative z-10 cursor-pointer rounded-none border-0 border-b-2 border-transparent! px-0 pt-2 pb-2.5 after:hidden data-active:border-foreground!"
             >
-              SQL Queries
+              DB Queries
               {sqlQueries.length > 0 ? (
                 <span className="ml-1 text-muted-foreground">
                   ({sqlQueries.length})

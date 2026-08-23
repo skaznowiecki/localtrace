@@ -14,6 +14,6 @@ export function register(server: McpServer, db: Db) {
       inputSchema: input,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
     },
-    async ({ trace_id }) => jsonResult(() => execute(db, trace_id)),
+    async ({ trace_id, raw }) => jsonResult(() => execute(db, trace_id, raw ?? false)),
   )
 }

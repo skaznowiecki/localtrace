@@ -14,5 +14,5 @@ COPY apps/web ./apps/web
 
 WORKDIR /app/apps/web
 
-EXPOSE 8080
-CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE 4371
+CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "4371"]

@@ -547,9 +547,11 @@ export function replaceActiveToken(
 export function filtersToSearchParams(
   filters: TraceQueryFilters,
   limit = 100,
+  offset = 0,
 ): URLSearchParams {
   const params = new URLSearchParams()
   params.set("limit", String(limit))
+  if (offset > 0) params.set("offset", String(offset))
   if (filters.service) params.set("service", filters.service)
   if (filters.status) params.set("status", filters.status)
   if (filters.method) params.set("method", filters.method)

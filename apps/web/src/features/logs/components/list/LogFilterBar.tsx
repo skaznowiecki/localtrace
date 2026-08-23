@@ -18,6 +18,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { resolveBrandFromName, SpanVendorIcon } from "@/features/traces"
 import { cn } from "@/lib/utils"
 
 import type { FacetValue, LogFacets } from "../../api/logs.api"
@@ -226,6 +227,18 @@ function joinQuery(chips: string[], draft: string): string {
     .join(" ")
 }
 
+function FilterBrandIcon({
+  name,
+  className,
+}: {
+  name: string
+  className?: string
+}) {
+  const brand = resolveBrandFromName(name)
+  if (!brand) return null
+  return <SpanVendorIcon vendor={brand} className={className} />
+}
+
 function FilterChip({
   chip,
   onRemove,
@@ -246,6 +259,9 @@ function FilterChip({
       {value !== null ? (
         <>
           <span className={cn(color.key, "opacity-60")}>:</span>
+          {key === "service" ? (
+            <FilterBrandIcon name={value} className="size-3" />
+          ) : null}
           <span className={cn("font-medium", color.value)}>{value}</span>
         </>
       ) : null}
@@ -645,7 +661,13 @@ export function LogFilterBar({
                     onMouseEnter={() => setHighlight(index)}
                     onClick={() => applySuggestion(suggestion)}
                   >
-                    <span className="font-mono font-medium">
+                    <span className="flex min-w-0 items-center gap-1.5 font-mono font-medium">
+                      {suggestion.insert.startsWith("service:") ? (
+                        <FilterBrandIcon
+                          name={suggestion.label}
+                          className="size-3.5"
+                        />
+                      ) : null}
                       {suggestion.label}
                     </span>
                     {suggestion.description ? (

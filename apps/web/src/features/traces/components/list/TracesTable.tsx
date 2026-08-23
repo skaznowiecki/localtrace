@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useLoadMoreOnScroll } from "@/lib/use-load-more"
 
 import { useTraceFacets } from "../../hooks/useTraceFacets"
 import { useTraceFilters } from "../../hooks/useTraceFilters"
@@ -92,9 +93,21 @@ export function TracesTable() {
     since: live ? undefined : pausedSince,
   }
 
-  const { traces, isLoading, error } = useTraces(listFilters, {
+  const {
+    traces,
+    isLoading,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useTraces(listFilters, {
     live,
     lookbackMs,
+  })
+  const { scrollRef, sentinelRef } = useLoadMoreOnScroll({
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   })
   const navigate = useNavigate({ from: "/traces" })
   const { trace: selectedTraceId } = useSearch({ from: "/traces" })
@@ -141,7 +154,7 @@ export function TracesTable() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
           {error ? (
             <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
               <AlertCircleIcon className="size-5 text-destructive" />
@@ -151,6 +164,7 @@ export function TracesTable() {
               </div>
             </div>
           ) : (
+            <>
             <Table className="text-xs">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow className="hover:bg-transparent">
@@ -230,6 +244,13 @@ export function TracesTable() {
                 )}
               </TableBody>
             </Table>
+            {isFetchingNextPage ? (
+              <p className="px-3 py-3 text-center text-xs text-muted-foreground">
+                Loading more…
+              </p>
+            ) : null}
+            <div ref={sentinelRef} className="h-px" />
+            </>
           )}
         </div>
 

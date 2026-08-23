@@ -8,7 +8,11 @@ import type { Db } from "@shared/db"
 import { AppError } from "@shared/errors"
 import { log, setLevel } from "@shared/helpers"
 import { routes as catalog } from "@features/catalog"
-import { envelope as ingestEnvelope, routes as ingest } from "@features/ingest"
+import {
+  envelope as ingestEnvelope,
+  mountAgent,
+  routes as ingest,
+} from "@features/ingest"
 import { listRoutes as logsList, routes as logs } from "@features/logs"
 import { routes as mcp } from "@features/mcp"
 import { routes as traces } from "@features/traces"
@@ -49,6 +53,8 @@ export function createApp(deps: {
   app.notFound((c) => c.json({ error: "not found" }, 404))
 
   app.get("/health", (c) => c.json({ status: "ok" }))
+
+  mountAgent(app, deps.config.otlpMaxBodyBytes)
 
   app.route("/mcp", mcp(deps.db))
   app.route("/api/logs", logsList())

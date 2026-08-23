@@ -8,5 +8,5 @@ export async function execute(
   filters: LogListFilters,
 ): Promise<LogDto[]> {
   const logs = await db.run((conn) => repo.list(conn, filters))
-  return logs.map(dto)
+  return logs.map((log) => dto(log, filters.raw ?? false))
 }

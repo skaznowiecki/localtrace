@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useLoadMoreOnScroll } from "@/lib/use-load-more"
 import {
   Table,
   TableBody,
@@ -85,9 +86,21 @@ export function LogsTable() {
     since: live ? undefined : pausedSince,
   }
 
-  const { logs, isLoading, error } = useLogs(listFilters, {
+  const {
+    logs,
+    isLoading,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useLogs(listFilters, {
     live,
     lookbackMs,
+  })
+  const { scrollRef, sentinelRef } = useLoadMoreOnScroll({
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   })
 
   const navigate = useNavigate({ from: "/logs" })
@@ -139,7 +152,7 @@ export function LogsTable() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
           {error ? (
             <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
               <AlertCircleIcon className="size-5 text-destructive" />
@@ -149,6 +162,7 @@ export function LogsTable() {
               </div>
             </div>
           ) : (
+            <>
             <Table className="text-xs">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow className="hover:bg-transparent">
@@ -207,6 +221,13 @@ export function LogsTable() {
                 )}
               </TableBody>
             </Table>
+            {isFetchingNextPage ? (
+              <p className="px-3 py-3 text-center text-xs text-muted-foreground">
+                Loading more…
+              </p>
+            ) : null}
+            <div ref={sentinelRef} className="h-px" />
+            </>
           )}
         </div>
 

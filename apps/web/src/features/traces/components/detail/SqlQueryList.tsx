@@ -261,7 +261,7 @@ export function SqlQueryList({
   if (queries.length === 0) {
     return (
       <p className="py-6 text-sm text-muted-foreground">
-        No SQL queries in this trace
+        No DB queries in this trace
       </p>
     )
   }

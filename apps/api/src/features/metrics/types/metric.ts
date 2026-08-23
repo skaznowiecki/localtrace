@@ -1,4 +1,4 @@
-import type { Json } from "@shared/helpers"
+import type { IngestProviderName, Json } from "@shared/helpers"
 
 export type MetricDataPoint = {
   id: string
@@ -30,4 +30,5 @@ export type MetricDataPoint = {
   exemplars: Json
   flags: number
   data: Json
+  ingestProvider?: IngestProviderName
 }

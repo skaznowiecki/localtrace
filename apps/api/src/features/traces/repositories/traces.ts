@@ -3,8 +3,14 @@ import {
   INSERT_CHUNK,
   valuePlaceholders,
 } from "@shared/db"
-import { emptyToUndef, parseJson, toBigInt, toNumber } from "@shared/helpers"
-import type { Json } from "@shared/helpers"
+import {
+  emptyToUndef,
+  parseJson,
+  toBigInt,
+  toNumber,
+  type IngestProviderName,
+  type Json,
+} from "@shared/helpers"
 import { parse as parseBreakdown } from "../helpers/breakdown"
 import type {
   FacetValue,
@@ -28,6 +34,7 @@ export type RebuildRow = {
   rootName?: string
   rootStatusCode: number
   rootAttributes: Json
+  rootIngestProvider?: IngestProviderName
 }
 
 const TRACE_SELECT = `SELECT trace_id, root_span_id, root_observed, root_service, root_name,
@@ -54,9 +61,9 @@ function orderBy(filters: TraceListFilters): string {
   const col = SORT_SQL[filters.sort]
   const dir = ORDER_SQL[filters.order]
   if (filters.sort === "date") {
-    return `ORDER BY ${col} ${dir} LIMIT ?`
+    return `ORDER BY ${col} ${dir} LIMIT ? OFFSET ?`
   }
-  return `ORDER BY ${col} ${dir}, start_time_ns DESC LIMIT ?`
+  return `ORDER BY ${col} ${dir}, start_time_ns DESC LIMIT ? OFFSET ?`
 }
 
 const SPAN_SELECT = `SELECT trace_id, span_id, parent_span_id, name, kind,
@@ -65,7 +72,7 @@ const SPAN_SELECT = `SELECT trace_id, span_id, parent_span_id, name, kind,
         dropped_links_count, service_name, resource_attributes,
         resource_dropped_attributes_count, resource_schema_url,
         scope_name, scope_version, scope_attributes, scope_dropped_attributes_count,
-        scope_schema_url, attributes, events, links
+        scope_schema_url, attributes, events, links, ingest_provider
  FROM spans`
 
 function mapTrace(row: Record<string, unknown>): TraceSummary {
@@ -119,6 +126,7 @@ function mapSpan(row: Record<string, unknown>): SpanRecord {
     attributes: parseJson(row.attributes) ?? null,
     events: parseJson(row.events) ?? null,
     links: parseJson(row.links) ?? null,
+    ingestProvider: (row.ingest_provider as IngestProviderName) ?? "otlp",
   }
 }
 
@@ -167,7 +175,7 @@ export async function list(
   }
 
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
-  params.push(filters.limit)
+  params.push(filters.limit, filters.offset)
   const rows = await conn.all(
     `${TRACE_SELECT}${where} ${orderBy(filters)}`,
     params,
@@ -289,7 +297,7 @@ async function listSpans(
   return rows.map((row) => mapSpan(row))
 }
 
-const SPAN_COLUMNS = 27
+const SPAN_COLUMNS = 28
 const TRACE_COLUMNS = 14
 
 function spanValues(span: SpanRecord): SqlValue[] {
@@ -321,6 +329,7 @@ function spanValues(span: SpanRecord): SqlValue[] {
     JSON.stringify(span.attributes ?? null),
     JSON.stringify(span.events ?? null),
     JSON.stringify(span.links ?? null),
+    span.ingestProvider ?? "otlp",
   ]
 }
 
@@ -375,6 +384,7 @@ export async function upsertSpans(
             attributes = excluded.attributes,
             events = excluded.events,
             links = excluded.links,
+            ingest_provider = excluded.ingest_provider,
             received_at = CURRENT_TIMESTAMP`
 
   for (let i = 0; i < spans.length; i += INSERT_CHUNK) {
@@ -387,7 +397,7 @@ export async function upsertSpans(
             dropped_links_count, service_name, resource_attributes,
             resource_dropped_attributes_count, resource_schema_url,
             scope_name, scope_version, scope_attributes, scope_dropped_attributes_count,
-            scope_schema_url, attributes, events, links
+            scope_schema_url, attributes, events, links, ingest_provider
         ) VALUES ${valuePlaceholders(chunk.length, SPAN_COLUMNS)}
         ${conflict}`,
       chunk.flatMap(spanValues),
@@ -414,6 +424,7 @@ export async function rebuild(
            service_name,
            status_code,
            attributes,
+           ingest_provider,
            row_number() OVER (
              PARTITION BY trace_id
              ORDER BY
@@ -445,7 +456,8 @@ export async function rebuild(
          r.service_name AS root_service,
          r.name AS root_name,
          r.status_code AS root_status_code,
-         r.attributes AS root_attributes
+         r.attributes AS root_attributes,
+         r.ingest_provider AS root_ingest_provider
        FROM agg a
        JOIN ranked r ON r.trace_id = a.trace_id AND r.rn = 1`,
       [...chunk, ...chunk],
@@ -463,6 +475,7 @@ export async function rebuild(
         rootName: emptyToUndef(row.root_name as string | null),
         rootStatusCode: toNumber(row.root_status_code),
         rootAttributes: parseJson(row.root_attributes) ?? null,
+        rootIngestProvider: (row.root_ingest_provider as IngestProviderName) ?? "otlp",
       })
     }
   }
@@ -523,6 +536,7 @@ export type BreakdownSpan = {
   attributes: Json
   startTimeNs: bigint
   durationNs: bigint
+  ingestProvider?: IngestProviderName
 }
 
 export async function pending(conn: DbConn, limit: number): Promise<string[]> {
@@ -548,7 +562,7 @@ export async function forBreakdown(
     const inList = chunk.map(() => "?").join(", ")
     const rows = await conn.all(
       `SELECT trace_id, span_id, parent_span_id, name, kind, attributes,
-              start_time_ns, duration_ns
+              start_time_ns, duration_ns, ingest_provider
        FROM spans WHERE trace_id IN (${inList})`,
       chunk,
     )
@@ -562,6 +576,7 @@ export async function forBreakdown(
         attributes: parseJson(row.attributes) ?? null,
         startTimeNs: toBigInt(row.start_time_ns),
         durationNs: toBigInt(row.duration_ns),
+        ingestProvider: (row.ingest_provider as IngestProviderName) ?? "otlp",
       })
     }
   }

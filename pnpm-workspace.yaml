@@ -1,3 +1,5 @@
 packages:
   - "apps/web"
   - "apps/api"
+allowBuilds:
+  esbuild: true

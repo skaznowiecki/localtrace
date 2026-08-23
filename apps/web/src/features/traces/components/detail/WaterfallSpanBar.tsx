@@ -7,10 +7,12 @@ import {
 } from "@/components/ui/tooltip"
 import { cn, formatSpanDuration } from "@/lib/utils"
 
-import { getSpanColor } from "../../service-colors"
-import { spanDisplayLabel } from "../../lib/span-display"
 import { extractHttpSpanMeta, isHttpSpan } from "../../lib/http-spans"
+import { spanDisplayLabel } from "../../lib/span-display"
+import { resolveSpanVendor } from "../../lib/span-vendor"
+import { getSpanColor } from "../../service-colors"
 import type { FlatSpanRow } from "../../types"
+import { SpanVendorIcon } from "../display/brand-icons"
 
 const SHORT_BAR_PCT = 8
 
@@ -53,12 +55,18 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
   const tooltipTarget = (() => {
     if (isGroup || !isHttpSpan(span)) return null
     const meta = extractHttpSpanMeta(span)
-    return meta.url ?? meta.path
+    if (meta.host && meta.path) return `${meta.host}${meta.path}`
+    if (meta.url) {
+      const q = meta.url.indexOf("?")
+      return q === -1 ? meta.url : meta.url.slice(0, q)
+    }
+    return meta.path
   })()
 
   const statsLabel = isGroup
     ? `Σ ${formatSpanDuration(span.group!.totalDurationMs)} · avg ${formatSpanDuration(span.group!.avgDurationMs)} · max ${formatSpanDuration(span.group!.maxDurationMs)}`
     : null
+  const vendor = resolveSpanVendor(span)
 
   return (
     <Tooltip>
@@ -101,13 +109,20 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
       <TooltipContent
         side="top"
         align="start"
-        className="max-w-xs flex-col items-stretch gap-1 px-3 py-2"
+        className="max-h-40 max-w-xs flex-col items-stretch gap-1 overflow-hidden px-3 py-2"
       >
-        <p className="font-medium">{label}</p>
+        <p className="flex min-w-0 items-center gap-1.5 font-medium">
+          {vendor ? (
+            <SpanVendorIcon vendor={vendor} className="size-3.5 shrink-0" />
+          ) : null}
+          <span className="min-w-0 truncate">{label}</span>
+        </p>
         {tooltipTarget && tooltipTarget !== label ? (
-          <p className="break-all text-background/80">{tooltipTarget}</p>
+          <p className="line-clamp-2 break-all text-background/80">
+            {tooltipTarget}
+          </p>
         ) : null}
-        <p className="text-background/80">{span.service}</p>
+        <p className="truncate text-background/80">{span.service}</p>
         {isGroup && statsLabel ? (
           <p className="font-mono tabular-nums text-background/80">
             {statsLabel}
@@ -119,7 +134,7 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
           </p>
         )}
         {span.statusMessage ? (
-          <p className="text-background/80">{span.statusMessage}</p>
+          <p className="line-clamp-2 text-background/80">{span.statusMessage}</p>
         ) : null}
       </TooltipContent>
     </Tooltip>

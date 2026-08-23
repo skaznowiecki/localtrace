@@ -134,6 +134,12 @@ export const input = z.object({
       "Sort column (default date).",
     ),
   order: sortOrder.optional().describe("Sort direction (default desc)"),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Number of traces to skip (default 0)"),
 })
 
 function msToNs(ms: number | undefined): bigint | undefined {
@@ -144,6 +150,7 @@ function msToNs(ms: number | undefined): bigint | undefined {
 export function filters(args: z.infer<typeof input>): TraceListFilters {
   return {
     limit: args.limit ?? 50,
+    offset: args.offset ?? 0,
     sort: args.sort ?? DEFAULT_SORT,
     order: args.order ?? DEFAULT_ORDER,
     service: args.service,
@@ -173,14 +180,20 @@ export const query = z
     since: qstr,
     sort: qstr,
     order: qstr,
+    offset: qstr,
   })
   .transform((value, ctx): TraceListFilters => {
     const limit = parseIntParam(value.limit, ctx, "limit")
     if (limit != null && limit < 1) {
       ctx.addIssue({ code: "custom", path: ["limit"], message: "invalid limit" })
     }
+    const offset = parseIntParam(value.offset, ctx, "offset")
+    if (offset != null && offset < 0) {
+      ctx.addIssue({ code: "custom", path: ["offset"], message: "invalid offset" })
+    }
     return {
       limit: limit ?? 50,
+      offset: offset ?? 0,
       sort: parseEnumParam(value.sort, sortField, ctx, "sort") ?? DEFAULT_SORT,
       order: parseEnumParam(value.order, sortOrder, ctx, "order") ?? DEFAULT_ORDER,
       service: value.service,

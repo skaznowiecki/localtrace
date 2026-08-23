@@ -73,15 +73,6 @@ function otlpStatus(status: unknown): { code: number; message?: string } {
   return { code: STATUS_ERROR, message: raw }
 }
 
-function httpFromRequest(request: Record<string, unknown>, attrs: Record<string, Json>): void {
-  const method = asString(request.method)
-  if (method) attrs["http.request.method"] = method.toUpperCase()
-  const url = asString(request.url)
-  if (url) attrs["url.full"] = url
-  const route = asString(request.route)
-  if (route) attrs["http.route"] = route
-}
-
 function routeFromTransaction(name: string | undefined): string | undefined {
   if (!name) return undefined
   if (name.startsWith("/")) return name
@@ -89,7 +80,7 @@ function routeFromTransaction(name: string | undefined): string | undefined {
   return maybe?.startsWith("/") ? maybe : undefined
 }
 
-function overlayHttp(
+function persistNativeHttp(
   attrs: Record<string, Json>,
   data: Record<string, unknown>,
   request: Record<string, unknown>,
@@ -97,31 +88,18 @@ function overlayHttp(
   transactionName?: string,
 ): void {
   mergeJson(attrs, data)
-  httpFromRequest(request, attrs)
-
-  const method =
-    asString(data["http.request.method"]) ??
-    asString(data["http.method"]) ??
-    asString(request.method)
-  if (method) attrs["http.request.method"] = method.toUpperCase()
-
-  const url =
-    asString(data["url.full"]) ??
-    asString(data["http.url"]) ??
-    asString(request.url)
-  if (url) attrs["url.full"] = url
-
+  const method = asString(request.method) ?? asString(data["http.method"])
+  if (method) attrs["http.method"] = method.toUpperCase()
+  const url = asString(request.url) ?? asString(data["http.url"])
+  if (url) attrs["http.url"] = url
   const response = asRecord(contexts.response)
   const statusCode =
-    asNumber(data["http.response.status_code"]) ??
-    asNumber(data["http.status_code"]) ??
-    asNumber(response.status_code)
-  if (statusCode != null) {
-    attrs["http.response.status_code"] = statusCode
-  }
-
+    asNumber(data["http.status_code"]) ?? asNumber(response.status_code)
+  if (statusCode != null) attrs["http.status_code"] = statusCode
   const route =
-    asString(data["http.route"]) ?? routeFromTransaction(transactionName)
+    asString(data["http.route"]) ??
+    asString(request.route) ??
+    routeFromTransaction(transactionName)
   if (route) attrs["http.route"] = route
 }
 
@@ -169,7 +147,7 @@ export function mapTransaction(event: Record<string, unknown>): SpanRecord[] {
   const scope = scopeFromSdk(event)
   const attrs: Record<string, Json> = {}
   if (op) attrs["sentry.op"] = op
-  overlayHttp(
+  persistNativeHttp(
     attrs,
     flattenAttributes(asRecord(trace.data)),
     request,
@@ -238,7 +216,7 @@ function mapChildSpan(
   const status = otlpStatus(span.status)
   const attrs: Record<string, Json> = {}
   if (op) attrs["sentry.op"] = op
-  overlayHttp(attrs, data, asRecord(span), {}, asString(span.name))
+  persistNativeHttp(attrs, data, asRecord(span), {}, asString(span.name))
 
   return record({
     traceId,
@@ -305,7 +283,7 @@ function mapStandaloneSpan(
   if (sdkVersion) resource["sentry.sdk.version"] = sdkVersion
   const attrs: Record<string, Json> = {}
   if (op) attrs["sentry.op"] = op
-  overlayHttp(attrs, data, asRecord(span), {}, asString(span.name))
+  persistNativeHttp(attrs, data, asRecord(span), {}, asString(span.name))
 
   return record({
     traceId,

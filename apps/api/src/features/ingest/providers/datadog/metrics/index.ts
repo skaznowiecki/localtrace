@@ -1,0 +1,1 @@
+export { datadogMetricsProvider } from "./provider"

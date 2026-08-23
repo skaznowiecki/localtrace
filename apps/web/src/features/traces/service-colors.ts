@@ -8,6 +8,9 @@ const SERVICE_COLORS: Record<string, string> = {
   mongo: "#2D6A4F",
   redis: "#F97316",
   postgres: "#6366F1",
+  clickhouse: "#EAB308",
+  nextjs: "#171717",
+  platform: "#171717",
   "auth-service": "#14B8A6",
   "worker-queue": "#A855F7",
 }

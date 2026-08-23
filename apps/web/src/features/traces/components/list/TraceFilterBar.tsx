@@ -21,11 +21,13 @@ import {
 import { cn } from "@/lib/utils"
 
 import type { FacetValue, TraceFacets } from "../../api/traces.api"
+import { resolveBrandFromName } from "../../lib/span-vendor"
 import {
   splitQueryTokens,
   TRACE_FILTER_KEYS,
   type TraceFilterKey,
 } from "../../lib/trace-filter"
+import { SpanVendorIcon } from "../display/brand-icons"
 
 type Suggestion = {
   id: string
@@ -243,6 +245,18 @@ function joinQuery(chips: string[], draft: string): string {
     .join(" ")
 }
 
+function FilterBrandIcon({
+  name,
+  className,
+}: {
+  name: string
+  className?: string
+}) {
+  const brand = resolveBrandFromName(name)
+  if (!brand) return null
+  return <SpanVendorIcon vendor={brand} className={className} />
+}
+
 /** A committed filter rendered as a removable token in the search bar. */
 function FilterChip({
   chip,
@@ -264,6 +278,9 @@ function FilterChip({
       {value !== null ? (
         <>
           <span className={cn(color.key, "opacity-60")}>:</span>
+          {key === "service" ? (
+            <FilterBrandIcon name={value} className="size-3" />
+          ) : null}
           <span className={cn("font-medium", color.value)}>{value}</span>
         </>
       ) : null}
@@ -684,7 +701,13 @@ export function TraceFilterBar({
                     onMouseEnter={() => setHighlight(index)}
                     onClick={() => applySuggestion(suggestion)}
                   >
-                    <span className="font-mono font-medium">
+                    <span className="flex min-w-0 items-center gap-1.5 font-mono font-medium">
+                      {suggestion.insert.startsWith("service:") ? (
+                        <FilterBrandIcon
+                          name={suggestion.label}
+                          className="size-3.5"
+                        />
+                      ) : null}
                       {suggestion.label}
                     </span>
                     {suggestion.description ? (

@@ -26,5 +26,11 @@ export function execute(c: Context<AppEnv>): ResolvedIngestProvider {
   return {
     ...provider,
     decode: (body) => provider.decode(body, ctx),
+    parseTraces: (body) => provider.parseTraces(body, ctx),
+    parseLogs: (body) => provider.parseLogs(body, ctx),
+    parseMetrics: (body) => provider.parseMetrics(body, ctx),
+    parseBatch: provider.parseBatch
+      ? (body) => provider.parseBatch!(body, ctx)
+      : undefined,
   }
 }

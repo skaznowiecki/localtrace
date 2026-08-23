@@ -3,7 +3,11 @@ import { dto } from "../helpers/dto"
 import * as repo from "../repositories/logs"
 import type { LogDto } from "../types/log"
 
-export async function execute(db: Db, traceId: string): Promise<LogDto[]> {
+export async function execute(
+  db: Db,
+  traceId: string,
+  raw = false,
+): Promise<LogDto[]> {
   const logs = await db.run((conn) => repo.forTrace(conn, traceId))
-  return logs.map(dto)
+  return logs.map((log) => dto(log, raw))
 }

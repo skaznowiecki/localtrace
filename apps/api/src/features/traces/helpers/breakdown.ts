@@ -205,14 +205,10 @@ function otherWorkKey(span: SpanLite): string | null {
 function httpClientKey(span: SpanLite): string | null {
   if (isDb(span) || span.name.startsWith("prisma:")) return null
   if (span.kind === SPAN_KIND_SERVER) return null
-  const sentryOp = readAttr(span.attributes, ["sentry.op"])?.toLowerCase() ?? ""
-  if (sentryOp === "http.server") return null
 
   const otelKind = readAttr(span.attributes, ["otel.kind"])?.toUpperCase()
   const isClient =
-    span.kind === SPAN_KIND_CLIENT ||
-    otelKind === "CLIENT" ||
-    sentryOp.startsWith("http.client")
+    span.kind === SPAN_KIND_CLIENT || otelKind === "CLIENT"
   if (!isClient) return null
 
   const host = httpHost(span)
@@ -236,8 +232,6 @@ function dbKey(span: SpanLite, system: string | undefined): string {
 
 function isDb(span: SpanLite): boolean {
   if (dbSystem(span)) return true
-  const sentryOp = readAttr(span.attributes, ["sentry.op"])?.toLowerCase()
-  if (sentryOp === "db") return true
   if (dbStatement(span)) return true
   return SQL_VERB.test(span.name)
 }

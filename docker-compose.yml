@@ -21,7 +21,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     ports:
-      - "8080:8080"
+      - "4371:4371"
     environment:
       - VITE_API_PROXY_TARGET=http://api:4318
     depends_on:

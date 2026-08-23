@@ -1,6 +1,6 @@
 import type { Context } from "hono"
 import type { AppEnv } from "@/app-env"
-import { log } from "@shared/helpers"
+import { log, stampIngestProvider } from "@shared/helpers"
 import { store as storeTraces } from "@features/traces"
 import { store as storeLogs } from "@features/logs"
 import { store as storeMetrics } from "@features/metrics"
@@ -22,9 +22,9 @@ export async function execute(
   const body = provider.decode(raw)
   const batch = await provider.parseBatch(body)
 
-  await storeTraces(c.get("db"), batch.spans)
-  await storeLogs(c.get("db"), batch.logs)
-  await storeMetrics(c.get("db"), batch.metrics)
+  await storeTraces(c.get("db"), stampIngestProvider(batch.spans, provider.id))
+  await storeLogs(c.get("db"), stampIngestProvider(batch.logs, provider.id))
+  await storeMetrics(c.get("db"), stampIngestProvider(batch.metrics, provider.id))
 
   log(
     `ingest batch provider=${provider.id} signal=envelope spans=${batch.spans.length} logs=${batch.logs.length} metrics=${batch.metrics.length}`,

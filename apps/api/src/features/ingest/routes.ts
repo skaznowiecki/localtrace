@@ -22,6 +22,14 @@ function limited(maxBytes: number): Hono<AppEnv> {
 export function routes(maxBytes: number): Hono<AppEnv> {
   const app = limited(maxBytes)
 
+  const ingestLogs = async (c: Parameters<typeof ingest.ingestLogs>[0]) => {
+    const provider = resolve.execute(c)
+    await ingest.ingestLogs(c, provider)
+    return provider.successResponse()
+  }
+  app.post("/input", ingestLogs)
+  app.post("/input/:apiKey", ingestLogs)
+
   app.post("/traces", async (c) => {
     const provider = resolve.execute(c)
     await ingest.ingestTraces(c, provider)
@@ -45,6 +53,22 @@ export function routes(maxBytes: number): Hono<AppEnv> {
 
 export function envelope(maxBytes: number): Hono<AppEnv> {
   const app = limited(maxBytes)
+
+  app.post("/v2/logs", async (c) => {
+    const provider = resolve.execute(c)
+    await ingest.ingestLogs(c, provider)
+    return provider.successResponse()
+  })
+  app.post("/v1/series", async (c) => {
+    const provider = resolve.execute(c)
+    await ingest.ingestMetrics(c, provider)
+    return provider.successResponse()
+  })
+  app.post("/v2/series", async (c) => {
+    const provider = resolve.execute(c)
+    await ingest.ingestMetrics(c, provider)
+    return provider.successResponse()
+  })
 
   // SDKs POST with a trailing slash (`/api/<id>/envelope/`).
   app.post("/:projectId/envelope", async (c) => {

@@ -1,4 +1,6 @@
-import { queryOptions } from "@tanstack/react-query"
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query"
+
+import { LIST_PAGE_SIZE, nextPageOffset } from "@/lib/infinite-pages"
 
 import {
   filtersToSearchParams,
@@ -73,9 +75,10 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchLogs(
   filters: LogQueryFilters = {},
-  limit = 100,
+  limit = LIST_PAGE_SIZE,
+  offset = 0,
 ): Promise<LogListItem[]> {
-  const params = filtersToSearchParams(filters, limit)
+  const params = filtersToSearchParams(filters, limit, offset)
   const response = await fetch(`/api/logs?${params.toString()}`)
   const logs = await parseJson<ApiLogDto[]>(response)
   return logs.map(mapLog)
@@ -117,22 +120,24 @@ export const logKeys = {
 
 export function logListQuery(
   filters: LogQueryFilters,
-  limit = 100,
+  limit = LIST_PAGE_SIZE,
   liveOptions: LogListLiveOptions = {},
 ) {
   const live = liveOptions.live ?? false
   const lookbackMs = liveOptions.lookbackMs ?? null
 
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: logKeys.list(filters, limit, liveOptions),
-    queryFn: () => {
+    queryFn: ({ pageParam }) => {
       const since =
         live && lookbackMs != null
           ? new Date(Date.now() - lookbackMs).toISOString()
           : filters.since
-      return fetchLogs({ ...filters, since }, limit)
+      return fetchLogs({ ...filters, since }, limit, pageParam)
     },
-    refetchInterval: live ? 2_000 : false,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      nextPageOffset(lastPage, allPages, limit),
     staleTime: live ? 0 : undefined,
   })
 }

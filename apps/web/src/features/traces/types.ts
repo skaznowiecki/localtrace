@@ -50,6 +50,7 @@ export type Span = {
   scopeVersion: string | null
   type: string | null
   payloadPath: string | null
+  provider: string | null
 }
 
 export type TraceDetail = {
@@ -69,6 +70,7 @@ export type TraceLog = {
   scopeVersion: string | null
   traceId: string | null
   spanId: string | null
+  provider: string | null
 }
 
 export type TraceSqlQuery = {

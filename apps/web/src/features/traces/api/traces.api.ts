@@ -1,4 +1,6 @@
-import { queryOptions } from "@tanstack/react-query"
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query"
+
+import { LIST_PAGE_SIZE, nextPageOffset } from "@/lib/infinite-pages"
 
 import type {
   JsonValue,
@@ -53,6 +55,7 @@ type ApiSpanDto = {
   scope_version: string | null
   type?: string | null
   payload_path?: string | null
+  provider?: string | null
 }
 
 type ApiTraceDetail = {
@@ -72,6 +75,7 @@ type ApiLogDto = {
   scope_version: string | null
   trace_id: string | null
   span_id: string | null
+  provider?: string | null
 }
 
 type ApiSqlQueryDto = {
@@ -177,6 +181,7 @@ function mapSpan(span: ApiSpanDto) {
     scopeVersion: span.scope_version,
     type: span.type || null,
     payloadPath: span.payload_path || null,
+    provider: span.provider ?? null,
   }
 }
 
@@ -193,6 +198,7 @@ function mapLog(log: ApiLogDto): TraceLog {
     scopeVersion: log.scope_version,
     traceId: log.trace_id,
     spanId: log.span_id,
+    provider: log.provider ?? null,
   }
 }
 
@@ -228,9 +234,10 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchTraces(
   filters: TraceQueryFilters = {},
-  limit = 100,
+  limit = LIST_PAGE_SIZE,
+  offset = 0,
 ): Promise<TraceListItem[]> {
-  const params = filtersToSearchParams(filters, limit)
+  const params = filtersToSearchParams(filters, limit, offset)
   const response = await fetch(`/api/traces?${params.toString()}`)
   const traces = await parseJson<ApiTraceCard[]>(response)
   return traces.map(mapTraceCard)
@@ -311,24 +318,24 @@ export const traceKeys = {
 
 export function traceListQuery(
   filters: TraceQueryFilters,
-  limit = 100,
+  limit = LIST_PAGE_SIZE,
   liveOptions: TraceListLiveOptions = {},
 ) {
   const live = liveOptions.live ?? false
   const lookbackMs = liveOptions.lookbackMs ?? null
 
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: traceKeys.list(filters, limit, liveOptions),
-    queryFn: () => {
-      // Sliding window while LIVE: recompute `since` on every poll.
-      // When paused, `filters.since` is the frozen absolute bound (if any).
+    queryFn: ({ pageParam }) => {
       const since =
         live && lookbackMs != null
           ? new Date(Date.now() - lookbackMs).toISOString()
           : filters.since
-      return fetchTraces({ ...filters, since }, limit)
+      return fetchTraces({ ...filters, since }, limit, pageParam)
     },
-    refetchInterval: live ? 2_000 : false,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      nextPageOffset(lastPage, allPages, limit),
     staleTime: live ? 0 : undefined,
   })
 }

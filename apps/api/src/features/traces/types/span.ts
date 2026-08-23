@@ -1,4 +1,4 @@
-import type { Json } from "@shared/helpers"
+import type { IngestProviderName, Json } from "@shared/helpers"
 
 export type SpanRecord = {
   traceId: string
@@ -28,6 +28,7 @@ export type SpanRecord = {
   attributes: Json
   events: Json
   links: Json
+  ingestProvider?: IngestProviderName
 }
 
 export type TraceStatus = "ok" | "error"
@@ -68,6 +69,7 @@ export type TraceSortOrder = "asc" | "desc"
 
 export type TraceListFilters = {
   limit: number
+  offset: number
   sort: TraceSortField
   order: TraceSortOrder
   service?: string

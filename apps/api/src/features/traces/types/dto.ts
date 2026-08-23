@@ -54,6 +54,7 @@ export type SpanDto = {
   scope_version: string | null
   type?: string
   payload_path?: string
+  provider: string
 }
 
 export type TraceDetailDto = {

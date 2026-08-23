@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS logs (
     flags                INTEGER NOT NULL,
     trace_id             TEXT,
     span_id              TEXT,
+    ingest_provider      TEXT NOT NULL,
     received_at          TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

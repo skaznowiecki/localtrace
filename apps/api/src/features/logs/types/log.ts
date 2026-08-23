@@ -1,4 +1,4 @@
-import type { Json } from "@shared/helpers"
+import type { IngestProviderName, Json } from "@shared/helpers"
 
 export type LogRecord = {
   id: string
@@ -22,6 +22,7 @@ export type LogRecord = {
   flags: number
   traceId?: string
   spanId?: string
+  ingestProvider?: IngestProviderName
 }
 
 export type LogDto = {
@@ -36,6 +37,7 @@ export type LogDto = {
   scope_version: string | null
   trace_id: string | null
   span_id: string | null
+  provider: string
 }
 
 export type LogSortField = "date" | "service" | "severity"
@@ -43,6 +45,7 @@ export type LogSortOrder = "asc" | "desc"
 
 export type LogListFilters = {
   limit: number
+  offset: number
   sort: LogSortField
   order: LogSortOrder
   service?: string
@@ -50,6 +53,7 @@ export type LogListFilters = {
   message?: string
   traceId?: string
   sinceNs?: bigint
+  raw?: boolean
 }
 
 export type FacetValue = {

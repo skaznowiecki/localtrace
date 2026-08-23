@@ -1,7 +1,7 @@
 import type { Db } from "@shared/db"
 import { NotFoundError } from "@shared/errors"
-import { nsToRfc3339, readAttr } from "@shared/helpers"
-import { dbSystem, statementHit } from "../helpers/span-type"
+import { nsToRfc3339, overlayAttributes, readAttr } from "@shared/helpers"
+import { dbSystem, isSqlSystem, statementHit } from "../helpers/span-type"
 import * as repo from "../repositories/traces"
 import type { SqlQueryDto } from "../types/dto"
 import type { SpanRecord } from "../types/span"
@@ -12,11 +12,28 @@ function spanStatus(statusCode: number): string {
   return "unset"
 }
 
+function statementText(
+  attrs: ReturnType<typeof overlayAttributes>,
+  name: string,
+): string | null {
+  const hit = statementHit(attrs)?.value
+  if (hit) return hit
+  if (!isSqlSystem(dbSystem(attrs))) return null
+  const operation = readAttr(attrs, ["db.operation"])
+  if (operation && name && name.toUpperCase() !== operation.toUpperCase()) {
+    return `${operation} ${name}`
+  }
+  return operation || name || null
+}
+
 function query(
   record: SpanRecord,
   traceStartNs: bigint,
 ): Omit<SqlQueryDto, "share"> | null {
-  const text = statementHit(record.attributes)?.value
+  const attrs = overlayAttributes(record.ingestProvider, record.attributes)
+  const system = dbSystem(attrs)
+  if (system && !isSqlSystem(system)) return null
+  const text = statementText(attrs, record.name)
   if (!text) return null
 
   const startOffsetNs =
@@ -29,10 +46,11 @@ function query(
     duration_ms: Number(record.durationNs) / 1_000_000,
     start_offset_ms: Number(startOffsetNs) / 1_000_000,
     started_at: nsToRfc3339(record.startTimeNs),
-    db_system: dbSystem(record.attributes) ?? null,
+    db_system: system ?? null,
     host:
-      readAttr(record.attributes, [
+      readAttr(attrs, [
         "server.address",
+        "peer.hostname",
         "net.peer.name",
         "peer.service",
         "db.name",

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll"
 import { useResizablePanel } from "../../hooks/useResizablePanel"
 import { computeCriticalPathIds } from "../../lib/critical-path"
+import { resolveSpanVendor } from "../../lib/span-vendor"
 import {
   buildSpanTree,
   flattenPackedRows,
@@ -20,6 +21,7 @@ import type {
   WaterfallRow,
   WaterfallSelection,
 } from "../../types"
+import { SpanVendorIcon } from "../display/brand-icons"
 import { SpanName } from "../span-name"
 import { SpanGroupDetails } from "./SpanGroupDetails"
 import { TraceSpanDetails, type SpanDetailsTab } from "./TraceSpanDetails"
@@ -106,6 +108,7 @@ const WaterfallRowView = memo(
       ? row.isGroupExpanded
       : row.isExpanded
     const namedSpan = row.laneSpans[0]
+    const vendor = namedSpan ? resolveSpanVendor(namedSpan) : null
 
     return (
       <div
@@ -149,9 +152,12 @@ const WaterfallRowView = memo(
         </div>
 
         <div
-          className="flex min-w-0 items-center pr-2"
+          className="flex min-w-0 items-center gap-1.5 pr-2"
           style={{ paddingLeft: `${4 + row.depth * 10}px` }}
         >
+          {vendor ? (
+            <SpanVendorIcon vendor={vendor} className="size-3.5" />
+          ) : null}
           {namedSpan ? (
             <button
               type="button"
@@ -261,7 +267,7 @@ export function TraceWaterfall({
         return
       }
       setSelection({ kind: "span", spanId: span.id })
-      // Keep SQL/Logs filters in sync with selection so switching tabs
+      // Keep DB/Logs filters in sync with selection so switching tabs
       // shows the selected span's related queries/logs.
       setLogSpanFilter(span.id)
       setSqlSpanFilter(span.id)

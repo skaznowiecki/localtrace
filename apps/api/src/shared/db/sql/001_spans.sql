@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS spans (
     attributes          TEXT,
     events              TEXT,
     links               TEXT,
+    ingest_provider     TEXT NOT NULL,
     received_at         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (trace_id, span_id)
 );
