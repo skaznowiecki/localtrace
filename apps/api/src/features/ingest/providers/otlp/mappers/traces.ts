@@ -1,8 +1,8 @@
-import { IdError, optionalOtlpId, parseOtlpId } from "../helpers/ids"
-import { toBigInt } from "../../../../../shared/helpers"
-import type { Json } from "../../../../../shared/helpers"
-import type { SpanRecord } from "../../../../traces/types/span"
-import { IngestError } from "../../errors"
+import * as z from "zod"
+import { optionalOtlpId, parseOtlpId } from "../helpers/ids"
+import { log, toBigInt } from "@shared/helpers"
+import type { Json } from "@shared/helpers"
+import type { SpanRecord } from "@features/traces/types/span"
 import { keyValuesToJson, serviceNameFromResource } from "../helpers/values"
 
 function asList(value: unknown): Record<string, unknown>[] {
@@ -45,8 +45,11 @@ export function mapTraceRequest(request: Record<string, unknown>): SpanRecord[] 
             ),
           )
         } catch (err) {
-          if (err instanceof IdError) {
-            throw new IngestError("validation", err.message)
+          if (err instanceof z.ZodError) {
+            log.warn(
+              `otlp skip span: ${err.issues[0]?.message ?? "invalid id"}`,
+            )
+            continue
           }
           throw err
         }
@@ -103,7 +106,9 @@ function mapSpan(
   return {
     traceId: parseOtlpId(span.traceId ?? span.trace_id, "trace"),
     spanId: parseOtlpId(span.spanId ?? span.span_id, "span"),
-    parentSpanId: parentEmpty ? undefined : parseOtlpId(parentRaw, "span"),
+    parentSpanId: parentEmpty
+      ? undefined
+      : optionalOtlpId(parentRaw, "span"),
     name: String(span.name ?? ""),
     kind: Number(span.kind ?? 0),
     startTimeNs: start,

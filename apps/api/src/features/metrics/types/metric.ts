@@ -1,4 +1,4 @@
-import type { Json } from "../../../shared/helpers"
+import type { Json } from "@shared/helpers"
 
 export type MetricDataPoint = {
   id: string

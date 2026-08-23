@@ -1,4 +1,4 @@
-import type { Db } from "../../../shared/db"
+import type { Db } from "@shared/db"
 import type { MetricDataPoint } from "../types/metric"
 import * as repo from "../repositories/metrics"
 

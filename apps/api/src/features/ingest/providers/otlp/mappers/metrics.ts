@@ -1,6 +1,6 @@
-import { toBigInt, toNumber } from "../../../../../shared/helpers"
-import type { Json } from "../../../../../shared/helpers"
-import type { MetricDataPoint } from "../../../../metrics/types/metric"
+import { toBigInt, toNumber } from "@shared/helpers"
+import type { Json } from "@shared/helpers"
+import type { MetricDataPoint } from "@features/metrics/types/metric"
 import { keyValuesToJson, serviceNameFromResource } from "../helpers/values"
 
 function asList(value: unknown): Record<string, unknown>[] {

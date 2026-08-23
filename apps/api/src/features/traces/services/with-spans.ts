@@ -1,7 +1,8 @@
-import type { Db } from "../../../shared/db"
-import { NotFoundError } from "../../../shared/errors"
-import { nestDottedKeys } from "../../../shared/helpers"
+import type { Db } from "@shared/db"
+import { NotFoundError } from "@shared/errors"
+import { nestDottedKeys } from "@shared/helpers"
 import { card } from "../helpers/card"
+import { classify } from "../helpers/span-type"
 import * as repo from "../repositories/traces"
 import type { SpanDto, TraceDetailDto } from "../types/dto"
 import type { SpanRecord, TraceSummary } from "../types/span"
@@ -15,6 +16,10 @@ function spanStatus(statusCode: number): string {
 function span(record: SpanRecord, traceStartNs: bigint): SpanDto {
   const startOffsetNs =
     record.startTimeNs > traceStartNs ? record.startTimeNs - traceStartNs : 0n
+  const classified = classify({
+    name: record.name,
+    attributes: record.attributes ?? {},
+  })
   return {
     id: record.spanId,
     parent_id: record.parentSpanId ?? null,
@@ -31,6 +36,8 @@ function span(record: SpanRecord, traceStartNs: bigint): SpanDto {
     resource_attributes: nestDottedKeys(record.resourceAttributes ?? {}),
     scope_name: record.scopeName ?? null,
     scope_version: record.scopeVersion ?? null,
+    type: classified?.type,
+    payload_path: classified?.payloadPath,
   }
 }
 

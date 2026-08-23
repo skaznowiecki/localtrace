@@ -15,18 +15,6 @@ import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
 import { TraceFacetSection } from "./TraceFacetSection"
 import { TraceFacetValue } from "./TraceFacetValue"
 
-const METHOD_FALLBACKS = [
-  "GET",
-  "POST",
-  "PUT",
-  "PATCH",
-  "DELETE",
-  "OPTIONS",
-  "HEAD",
-]
-
-const DURATION_PRESETS = [">100ms", ">500ms", ">1s", "<100ms"] as const
-
 const ROUTE_PAGE_SIZE = 30
 
 type TraceFacetPanelProps = {
@@ -35,6 +23,11 @@ type TraceFacetPanelProps = {
   isLoading: boolean
   onSetFilter: (key: TraceFilterKey, value: string | null) => void
   onCollapse: () => void
+}
+
+function durationLabel(value: string): string {
+  if (value.startsWith(">")) return value
+  return value.replace("-", "–")
 }
 
 export function TraceFacetPanel({
@@ -46,11 +39,6 @@ export function TraceFacetPanel({
 }: TraceFacetPanelProps) {
   const [routeNeedle, setRouteNeedle] = useState("")
   const [routeLimit, setRouteLimit] = useState(ROUTE_PAGE_SIZE)
-
-  const methods =
-    facets.methods.length > 0 ? facets.methods : METHOD_FALLBACKS
-  const statuses =
-    facets.statuses.length > 0 ? facets.statuses : ["ok", "error"]
 
   const filteredRoutes = useMemo(() => {
     const lower = routeNeedle.trim().toLowerCase()
@@ -97,22 +85,28 @@ export function TraceFacetPanel({
         >
           {facets.services.map((service) => (
             <TraceFacetValue
-              key={service}
-              label={service}
-              title={service}
-              selected={isFilterValueSelected(filters, "service", service)}
-              onSelect={() => toggle("service", service)}
+              key={service.value}
+              label={service.value}
+              title={service.value}
+              count={service.count}
+              selected={isFilterValueSelected(filters, "service", service.value)}
+              onSelect={() => toggle("service", service.value)}
             />
           ))}
         </TraceFacetSection>
 
-        <TraceFacetSection title="Status" isLoading={isLoading}>
-          {statuses.map((status) => (
+        <TraceFacetSection
+          title="Status"
+          isLoading={isLoading}
+          empty={!isLoading && facets.statuses.length === 0}
+        >
+          {facets.statuses.map((status) => (
             <TraceFacetValue
-              key={status}
-              label={status}
-              selected={isFilterValueSelected(filters, "status", status)}
-              onSelect={() => toggle("status", status)}
+              key={status.value}
+              label={status.value}
+              count={status.count}
+              selected={isFilterValueSelected(filters, "status", status.value)}
+              onSelect={() => toggle("status", status.value)}
             />
           ))}
         </TraceFacetSection>
@@ -120,16 +114,17 @@ export function TraceFacetPanel({
         <TraceFacetSection
           title="Method"
           isLoading={isLoading}
-          empty={!isLoading && methods.length === 0}
+          empty={!isLoading && facets.methods.length === 0}
         >
-          {methods.map((method) => (
+          {facets.methods.map((method) => (
             <TraceFacetValue
-              key={method}
+              key={method.value}
               label={
-                <HttpMethodBadge method={method} className="text-[10px]" />
+                <HttpMethodBadge method={method.value} className="text-[10px]" />
               }
-              selected={isFilterValueSelected(filters, "method", method)}
-              onSelect={() => toggle("method", method)}
+              count={method.count}
+              selected={isFilterValueSelected(filters, "method", method.value)}
+              onSelect={() => toggle("method", method.value)}
             />
           ))}
         </TraceFacetSection>
@@ -139,23 +134,24 @@ export function TraceFacetPanel({
           isLoading={isLoading}
           empty={!isLoading && facets.httpStatusCodes.length === 0}
         >
-          {facets.httpStatusCodes.map((code) => {
-            const value = String(code)
-            return (
-              <TraceFacetValue
-                key={code}
-                label={
-                  <HttpStatusCodeBadge code={code} className="text-[10px]" />
-                }
-                selected={isFilterValueSelected(
-                  filters,
-                  "http.status_code",
-                  value,
-                )}
-                onSelect={() => toggle("http.status_code", value)}
-              />
-            )
-          })}
+          {facets.httpStatusCodes.map((code) => (
+            <TraceFacetValue
+              key={code.value}
+              label={
+                <HttpStatusCodeBadge
+                  code={code.value}
+                  className="text-[10px]"
+                />
+              }
+              count={code.count}
+              selected={isFilterValueSelected(
+                filters,
+                "http.status_code",
+                code.value,
+              )}
+              onSelect={() => toggle("http.status_code", code.value)}
+            />
+          ))}
         </TraceFacetSection>
 
         <TraceFacetSection
@@ -197,13 +193,23 @@ export function TraceFacetPanel({
           ) : null}
         </TraceFacetSection>
 
-        <TraceFacetSection title="Duration" defaultOpen>
-          {DURATION_PRESETS.map((preset) => (
+        <TraceFacetSection
+          title="Duration"
+          defaultOpen
+          isLoading={isLoading}
+          empty={!isLoading && facets.durations.length === 0}
+        >
+          {facets.durations.map((bucket) => (
             <TraceFacetValue
-              key={preset}
-              label={preset}
-              selected={isFilterValueSelected(filters, "duration", preset)}
-              onSelect={() => toggle("duration", preset)}
+              key={bucket.value}
+              label={durationLabel(bucket.value)}
+              count={bucket.count}
+              selected={isFilterValueSelected(
+                filters,
+                "duration",
+                bucket.value,
+              )}
+              onSelect={() => toggle("duration", bucket.value)}
             />
           ))}
         </TraceFacetSection>

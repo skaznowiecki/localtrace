@@ -1,5 +1,5 @@
 import { ChevronRightIcon } from "lucide-react"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -22,6 +22,33 @@ function KeyToken({ name }: { name: string }) {
   return <span className="text-slate-500 dark:text-slate-400">{name}</span>
 }
 
+function Glyph({ children }: { children?: ReactNode }) {
+  return (
+    <span className="inline-flex size-4 shrink-0 items-center justify-center">
+      {children}
+    </span>
+  )
+}
+
+function Row({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 py-0.5 leading-7",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 function JsonNode({
   keyName,
   value,
@@ -39,8 +66,8 @@ function JsonNode({
 
   if (!isContainer) {
     return (
-      <div className="flex items-baseline gap-2 py-0.5 leading-7">
-        <span className="inline-block size-4 shrink-0" />
+      <Row>
+        <Glyph />
         <span className="min-w-0">
           {keyName !== undefined ? (
             <>
@@ -49,7 +76,7 @@ function JsonNode({
           ) : null}
           <AttributeValue value={value} />
         </span>
-      </div>
+      </Row>
     )
   }
 
@@ -62,8 +89,8 @@ function JsonNode({
 
   if (entries.length === 0) {
     return (
-      <div className="flex items-baseline gap-2 py-0.5 leading-7">
-        <span className="inline-block size-4 shrink-0" />
+      <Row>
+        <Glyph />
         <span>
           {keyName !== undefined ? (
             <>
@@ -75,7 +102,7 @@ function JsonNode({
             {closeBrace}
           </span>
         </span>
-      </div>
+      </Row>
     )
   }
 
@@ -86,14 +113,16 @@ function JsonNode({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-baseline gap-1 py-0.5 text-left leading-7"
+        className="flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left leading-7"
       >
-        <ChevronRightIcon
-          className={cn(
-            "size-4 shrink-0 self-center text-muted-foreground/60 transition-transform",
-            open && "rotate-90",
-          )}
-        />
+        <Glyph>
+          <ChevronRightIcon
+            className={cn(
+              "size-3.5 text-muted-foreground/60 transition-transform",
+              open && "rotate-90",
+            )}
+          />
+        </Glyph>
         <span>
           {keyName !== undefined ? (
             <>
@@ -114,7 +143,7 @@ function JsonNode({
 
       {open ? (
         <>
-          <div className="ml-3 border-l border-border/50 pl-4">
+          <div className="ml-[7px] border-l border-border/50 pl-[13px]">
             {entries.map(([childKey, childValue], index) => (
               <JsonNode
                 key={childKey ?? `idx-${index}`}
@@ -124,10 +153,10 @@ function JsonNode({
               />
             ))}
           </div>
-          <div className="flex items-baseline py-0.5 leading-7">
-            <span className="inline-block size-4 shrink-0" />
+          <Row>
+            <Glyph />
             <span className="text-muted-foreground">{closeBrace}</span>
-          </div>
+          </Row>
         </>
       ) : null}
     </div>

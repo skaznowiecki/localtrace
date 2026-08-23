@@ -19,15 +19,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll"
-import type { SqlQueryEntry } from "../../lib/sql-spans"
-import type { Span } from "../../types"
+import type { Span, TraceSqlQuery } from "../../types"
 import { highlightSql } from "../attribute-value/strategies/sql"
 
 type SqlQueryListProps = {
-  queries: SqlQueryEntry[]
+  queries: TraceSqlQuery[]
   spans: Span[]
   spanFilter: string | null
   onClearSpanFilter: () => void
+  isLoading?: boolean
 }
 
 const QUERY_PAGE_SIZE = 40
@@ -67,11 +67,11 @@ function formatQueryWhen(iso: string): string {
   return `${month} ${day}, ${year} at ${hours}:${minutes}:${seconds}.${ms} ${ampm}`
 }
 
-function queryMeta(query: SqlQueryEntry): string {
+function queryMeta(query: TraceSqlQuery): string {
   return query.dbSystem ?? query.host ?? query.name
 }
 
-function matchesQuery(query: SqlQueryEntry, needle: string): boolean {
+function matchesQuery(query: TraceSqlQuery, needle: string): boolean {
   if (!needle) return true
   const haystack = [
     query.statement,
@@ -119,7 +119,7 @@ function MetaSep() {
   </span>
 }
 
-function QueryMetaBar({ query, open }: { query: SqlQueryEntry; open: boolean }) {
+function QueryMetaBar({ query, open }: { query: TraceSqlQuery; open: boolean }) {
   const meta = queryMeta(query)
 
   return (
@@ -156,7 +156,7 @@ function QueryMetaBar({ query, open }: { query: SqlQueryEntry; open: boolean }) 
   )
 }
 
-const SqlQueryRow = memo(function SqlQueryRow({ query }: { query: SqlQueryEntry }) {
+const SqlQueryRow = memo(function SqlQueryRow({ query }: { query: TraceSqlQuery }) {
   const [open, setOpen] = useState(false)
   const preview = query.statement.replace(/\s+/g, " ").trim()
 
@@ -206,6 +206,7 @@ export function SqlQueryList({
   spans,
   spanFilter,
   onClearSpanFilter,
+  isLoading = false,
 }: SqlQueryListProps) {
   const [search, setSearch] = useState("")
   const needle = search.trim().toLowerCase()
@@ -250,6 +251,12 @@ export function SqlQueryList({
     filtered,
     QUERY_PAGE_SIZE,
   )
+
+  if (isLoading && queries.length === 0) {
+    return (
+      <p className="py-6 text-sm text-muted-foreground">Loading queries…</p>
+    )
+  }
 
   if (queries.length === 0) {
     return (

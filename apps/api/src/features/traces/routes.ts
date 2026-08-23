@@ -1,10 +1,13 @@
 import { zValidator } from "@hono/zod-validator"
 import { Hono } from "hono"
-import { BadRequestError } from "../../shared/errors"
-import { IdError, normalizeTraceId } from "../../shared/helpers"
-import type { AppEnv } from "../../app-env"
+import { onInvalid } from "@shared/errors"
+import type { AppEnv } from "@/app-env"
+import * as listSchema from "./schemas/list"
+import * as sqlSchema from "./schemas/sql"
+import * as withSpansSchema from "./schemas/with-spans"
 import * as facets from "./services/facets"
 import * as list from "./services/list"
+import * as sql from "./services/sql"
 import * as withSpans from "./services/with-spans"
 
 export function routes(): Hono<AppEnv> {
@@ -14,26 +17,16 @@ export function routes(): Hono<AppEnv> {
     return c.json(await facets.execute(c.get("db")))
   })
 
-  app.get(
-    "/",
-    zValidator("query", list.query, (result) => {
-      if (result.success) return
-      const issue = result.error.issues[0]
-      throw new BadRequestError(issue?.message ?? "invalid query")
-    }),
-    async (c) => {
-      return c.json(await list.execute(c.get("db"), c.req.valid("query")))
-    },
-  )
+  app.get("/", zValidator("query", listSchema.query, onInvalid), async (c) => {
+    return c.json(await list.execute(c.get("db"), c.req.valid("query")))
+  })
 
-  app.get("/:id", async (c) => {
-    let traceId: string
-    try {
-      traceId = normalizeTraceId(c.req.param("id"))
-    } catch (err) {
-      throw new BadRequestError(err instanceof IdError ? err.message : String(err))
-    }
-    return c.json(await withSpans.execute(c.get("db"), traceId))
+  app.get("/:id/sql", zValidator("param", sqlSchema.param, onInvalid), async (c) => {
+    return c.json(await sql.execute(c.get("db"), c.req.valid("param").id))
+  })
+
+  app.get("/:id", zValidator("param", withSpansSchema.param, onInvalid), async (c) => {
+    return c.json(await withSpans.execute(c.get("db"), c.req.valid("param").id))
   })
 
   return app

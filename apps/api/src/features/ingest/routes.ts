@@ -1,13 +1,13 @@
 import { Hono } from "hono"
 import { bodyLimit } from "hono/body-limit"
-import type { AppEnv } from "../../app-env"
+import type { AppEnv } from "@/app-env"
 import { IngestError } from "./providers/errors"
+import * as envelopeIngest from "./services/envelope"
 import * as ingest from "./services/ingest"
 import * as resolve from "./services/resolve"
 
-export function routes(maxBytes: number): Hono<AppEnv> {
+function limited(maxBytes: number): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
-
   app.use(
     bodyLimit({
       maxSize: maxBytes,
@@ -16,6 +16,11 @@ export function routes(maxBytes: number): Hono<AppEnv> {
       },
     }),
   )
+  return app
+}
+
+export function routes(maxBytes: number): Hono<AppEnv> {
+  const app = limited(maxBytes)
 
   app.post("/traces", async (c) => {
     const provider = resolve.execute(c)
@@ -33,6 +38,24 @@ export function routes(maxBytes: number): Hono<AppEnv> {
     const provider = resolve.execute(c)
     await ingest.ingestMetrics(c, provider)
     return provider.successResponse()
+  })
+
+  return app
+}
+
+export function envelope(maxBytes: number): Hono<AppEnv> {
+  const app = limited(maxBytes)
+
+  // SDKs POST with a trailing slash (`/api/<id>/envelope/`).
+  app.post("/:projectId/envelope", async (c) => {
+    const provider = resolve.execute(c)
+    const eventId = await envelopeIngest.execute(c, provider)
+    return provider.successResponse(eventId)
+  })
+  app.post("/:projectId/envelope/", async (c) => {
+    const provider = resolve.execute(c)
+    const eventId = await envelopeIngest.execute(c, provider)
+    return provider.successResponse(eventId)
   })
 
   return app

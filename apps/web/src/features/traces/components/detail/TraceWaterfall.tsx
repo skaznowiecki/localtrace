@@ -16,9 +16,11 @@ import type {
   FlatSpanRow,
   Span,
   TraceLog,
+  TraceSqlQuery,
   WaterfallRow,
   WaterfallSelection,
 } from "../../types"
+import { SpanName } from "../span-name"
 import { SpanGroupDetails } from "./SpanGroupDetails"
 import { TraceSpanDetails, type SpanDetailsTab } from "./TraceSpanDetails"
 import {
@@ -30,52 +32,25 @@ import { WaterfallSpanBar } from "./WaterfallSpanBar"
 import { WaterfallToolbar, type TraceViewMode } from "./WaterfallToolbar"
 import { TraceSpanNameStats } from "./TraceSpanNameStats"
 
-const WATERFALL_PAGE_SIZE = 30
+const WATERFALL_PAGE_SIZE = 80
 
 type TraceWaterfallProps = {
   spans: Span[]
-  startTime: string
   logs?: TraceLog[]
   logsLoading?: boolean
+  sqlQueries?: TraceSqlQuery[]
+  sqlLoading?: boolean
 }
 
 type WaterfallRowViewProps = {
   row: WaterfallRow
   totalDurationMs: number
   selection: WaterfallSelection
+  criticalPathEnabled: boolean
+  criticalPathIds: Set<string>
   onSelect: (span: FlatSpanRow) => void
   onToggleExpanded: (spanId: string) => void
   onToggleGroup: (groupId: string) => void
-}
-
-function filterRowsToCriticalPath(
-  rows: WaterfallRow[],
-  criticalPathIds: Set<string>,
-): WaterfallRow[] {
-  const filtered: WaterfallRow[] = []
-
-  for (const row of rows) {
-    const laneSpans = row.laneSpans.filter((span) =>
-      isSpanOnCriticalPath(span, criticalPathIds),
-    )
-    if (laneSpans.length === 0) continue
-
-    filtered.push({
-      ...row,
-      id: laneSpans.map((span) => span.id).join("|"),
-      laneSpans,
-      expandSpanId: laneSpans.find((span) => span.hasChildren)?.id ?? null,
-      isExpanded: laneSpans.find((span) => span.hasChildren)?.isExpanded ?? false,
-      // Groups only survive if a member is on the path; keep group chevron.
-      expandGroupId:
-        row.expandGroupId && laneSpans.some((span) => span.group)
-          ? row.expandGroupId
-          : null,
-      isGroupExpanded: row.isGroupExpanded,
-    })
-  }
-
-  return filtered
 }
 
 function rowIsSelected(row: WaterfallRow, selection: WaterfallSelection): boolean {
@@ -118,6 +93,8 @@ const WaterfallRowView = memo(
     row,
     totalDurationMs,
     selection,
+    criticalPathEnabled,
+    criticalPathIds,
     onSelect,
     onToggleExpanded,
     onToggleGroup,
@@ -128,6 +105,7 @@ const WaterfallRowView = memo(
     const chevronExpanded = hasGroupChevron
       ? row.isGroupExpanded
       : row.isExpanded
+    const namedSpan = row.laneSpans[0]
 
     return (
       <div
@@ -170,6 +148,34 @@ const WaterfallRowView = memo(
           </button>
         </div>
 
+        <div
+          className="flex min-w-0 items-center pr-2"
+          style={{ paddingLeft: `${4 + row.depth * 10}px` }}
+        >
+          {namedSpan ? (
+            <button
+              type="button"
+              className="min-w-0 cursor-pointer truncate text-left text-[11px] text-foreground"
+              onClick={() => onSelect(namedSpan)}
+            >
+              {namedSpan.group ? (
+                <span className="block truncate" title={namedSpan.group.name}>
+                  {namedSpan.group.name}{" "}
+                  <span className="text-muted-foreground">
+                    ×{namedSpan.group.count}
+                  </span>
+                </span>
+              ) : (
+                <SpanName
+                  name={namedSpan.name}
+                  attributes={namedSpan.attributes}
+                  compact
+                />
+              )}
+            </button>
+          ) : null}
+        </div>
+
         <div className="relative px-2 py-1.5">
           <div className="relative h-7">
             {row.laneSpans.map((span) => (
@@ -178,6 +184,10 @@ const WaterfallRowView = memo(
                 span={span}
                 totalDurationMs={totalDurationMs}
                 isSelected={isSpanSelected(span, selection)}
+                muted={
+                  criticalPathEnabled &&
+                  !isSpanOnCriticalPath(span, criticalPathIds)
+                }
                 onSelect={onSelect}
               />
             ))}
@@ -189,6 +199,8 @@ const WaterfallRowView = memo(
   (prev, next) =>
     prev.row === next.row &&
     prev.totalDurationMs === next.totalDurationMs &&
+    prev.criticalPathEnabled === next.criticalPathEnabled &&
+    prev.criticalPathIds === next.criticalPathIds &&
     prev.onSelect === next.onSelect &&
     prev.onToggleExpanded === next.onToggleExpanded &&
     prev.onToggleGroup === next.onToggleGroup &&
@@ -198,9 +210,10 @@ const WaterfallRowView = memo(
 
 export function TraceWaterfall({
   spans,
-  startTime,
   logs = [],
   logsLoading = false,
+  sqlQueries = [],
+  sqlLoading = false,
 }: TraceWaterfallProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const ids = new Set<string>()
@@ -223,17 +236,10 @@ export function TraceWaterfall({
     () => computeCriticalPathIds(roots, totalDurationMs),
     [roots, totalDurationMs],
   )
-  const rows = useMemo(() => {
-    const allRows = flattenPackedRows(roots, expandedIds, expandedGroupIds)
-    if (!criticalPathEnabled) return allRows
-    return filterRowsToCriticalPath(allRows, criticalPathIds)
-  }, [
-    roots,
-    expandedIds,
-    expandedGroupIds,
-    criticalPathEnabled,
-    criticalPathIds,
-  ])
+  const rows = useMemo(
+    () => flattenPackedRows(roots, expandedIds, expandedGroupIds),
+    [roots, expandedIds, expandedGroupIds],
+  )
 
   const [selection, setSelection] = useState<WaterfallSelection>(() => ({
     kind: "span",
@@ -367,6 +373,8 @@ export function TraceWaterfall({
                   row={row}
                   totalDurationMs={totalDurationMs}
                   selection={selection}
+                  criticalPathEnabled={criticalPathEnabled}
+                  criticalPathIds={criticalPathIds}
                   onSelect={selectFlatSpan}
                   onToggleExpanded={toggleExpanded}
                   onToggleGroup={toggleGroup}
@@ -384,6 +392,7 @@ export function TraceWaterfall({
                       )}
                     >
                       <div />
+                      <Skeleton className="h-4 w-24 rounded-md" />
                       <Skeleton className="h-7 w-full rounded-md" />
                     </div>
                   ))}
@@ -427,9 +436,10 @@ export function TraceWaterfall({
               <TraceSpanDetails
                 span={selectedSpan}
                 spans={spans}
-                startTime={startTime}
                 logs={logs}
                 logsLoading={logsLoading}
+                sqlQueries={sqlQueries}
+                sqlLoading={sqlLoading}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 logSpanFilter={logSpanFilter}

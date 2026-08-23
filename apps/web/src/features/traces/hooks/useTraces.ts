@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 
 import {
   traceListQuery,
@@ -13,7 +13,10 @@ export function useTraces(
   liveOptions: TraceListLiveOptions = {},
   limit = DEFAULT_LIMIT,
 ) {
-  const query = useQuery(traceListQuery(filters, limit, liveOptions))
+  const query = useQuery({
+    ...traceListQuery(filters, limit, liveOptions),
+    placeholderData: keepPreviousData,
+  })
 
   return {
     traces: query.data ?? [],

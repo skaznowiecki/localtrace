@@ -1,14 +1,8 @@
-import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { ExternalLinkIcon } from "lucide-react"
+import type { ReactNode } from "react"
 
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   extractHttpSpanMeta,
-  isHttpSpan,
   type HttpSpanMeta,
 } from "../../../lib/http-spans"
 import type { Span } from "../../../types"
@@ -17,6 +11,7 @@ import { HttpPath } from "../../display/HttpPath"
 import { HttpStatusCodeBadge } from "../../display/HttpStatusCodeBadge"
 import type { SpanOverviewStrategy } from "../types"
 import { KvRow } from "../KvRow"
+import { OverviewSection } from "../OverviewSection"
 
 function UrlLink({ href }: { href: string }) {
   const isAbsolute = /^https?:\/\//i.test(href)
@@ -99,27 +94,24 @@ function HttpRequestsBody({ meta }: { meta: HttpSpanMeta }) {
   )
 }
 
-function HttpRequestsOverview({ span }: { span: Span }) {
-  const [open, setOpen] = useState(true)
+export function HttpLikeOverview({
+  span,
+  title,
+}: {
+  span: Span
+  title: string
+}) {
   const meta = extractHttpSpanMeta(span)
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="mb-1">
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 py-2 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase hover:text-foreground">
-        <ChevronDownIcon
-          className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`}
-        />
-        HTTP Requests
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <HttpRequestsBody meta={meta} />
-      </CollapsibleContent>
-    </Collapsible>
+    <OverviewSection title={title}>
+      <HttpRequestsBody meta={meta} />
+    </OverviewSection>
   )
 }
 
 export const httpOverviewStrategy: SpanOverviewStrategy = {
   id: "http",
-  match: isHttpSpan,
-  render: (span) => <HttpRequestsOverview span={span} />,
+  match: (span) => span.type === "http",
+  render: (span) => <HttpLikeOverview span={span} title="HTTP Requests" />,
 }

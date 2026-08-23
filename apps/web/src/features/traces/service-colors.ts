@@ -1,4 +1,6 @@
 const SERVICE_COLORS: Record<string, string> = {
+  App: "#94A3B8",
+  s3: "#E75480",
   "lumon-api": "#5B9BD5",
   "external-api": "#E75480",
   "platform-web": "#8B5CF6",

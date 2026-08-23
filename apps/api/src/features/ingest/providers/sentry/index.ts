@@ -1,0 +1,1 @@
+export { sentryProvider } from "./provider"

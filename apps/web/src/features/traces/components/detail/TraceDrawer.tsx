@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 import { useTraceDetail } from "../../hooks/useTraceDetail"
 import { useTraceLogs } from "../../hooks/useTraceLogs"
+import { useTraceSql } from "../../hooks/useTraceSql"
 import { TraceDrawerHeader } from "./TraceDrawerHeader"
 import { TraceWaterfall } from "./TraceWaterfall"
 
@@ -18,6 +19,7 @@ type TraceDrawerProps = {
 export function TraceDrawer({ traceId, onOpenChange }: TraceDrawerProps) {
   const { detail, isLoading, error } = useTraceDetail(traceId)
   const { logs, isLoading: logsLoading } = useTraceLogs(traceId)
+  const { queries: sqlQueries, isLoading: sqlLoading } = useTraceSql(traceId)
   const [fullscreen, setFullscreen] = useState(false)
 
   return (
@@ -52,7 +54,6 @@ export function TraceDrawer({ traceId, onOpenChange }: TraceDrawerProps) {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TraceDrawerHeader
               trace={detail.trace}
-              spans={detail.spans}
               fullscreen={fullscreen}
               onFullscreenChange={setFullscreen}
             />
@@ -60,9 +61,10 @@ export function TraceDrawer({ traceId, onOpenChange }: TraceDrawerProps) {
             <TraceWaterfall
               key={detail.trace.id}
               spans={detail.spans}
-              startTime={detail.trace.startTime}
               logs={logs}
               logsLoading={logsLoading}
+              sqlQueries={sqlQueries}
+              sqlLoading={sqlLoading}
             />
           </div>
         ) : null}

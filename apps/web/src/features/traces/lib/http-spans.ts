@@ -203,14 +203,3 @@ export function extractHttpSpanMeta(span: Span): HttpSpanMeta {
     queryParams,
   }
 }
-
-/** HTTP status code from the root span, if any. */
-export function extractRootHttpStatusCode(spans: Span[]): string | null {
-  const root =
-    spans.find((span) => !span.parentId) ??
-    spans.find((span) => span.startOffsetMs === 0) ??
-    spans[0]
-
-  if (!root) return null
-  return extractHttpSpanMeta(root).statusCode
-}

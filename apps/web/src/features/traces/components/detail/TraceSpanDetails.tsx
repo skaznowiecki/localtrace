@@ -1,5 +1,5 @@
 import { ChevronDownIcon } from "lucide-react"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import {
   Collapsible,
@@ -10,9 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatSpanDuration } from "@/lib/utils"
 
 import { extractHttpSpanMeta, isHttpSpan } from "../../lib/http-spans"
-import { collectSqlQueries } from "../../lib/sql-spans"
 import { resolveSpanVendor } from "../../lib/span-vendor"
-import type { Span, TraceLog } from "../../types"
+import type { Span, TraceLog, TraceSqlQuery } from "../../types"
 import { SpanVendorIcon } from "../display/brand-icons"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpPath } from "../display/HttpPath"
@@ -27,9 +26,10 @@ export type SpanDetailsTab = "overview" | "sql-queries" | "logs"
 type TraceSpanDetailsProps = {
   span: Span
   spans: Span[]
-  startTime: string
   logs: TraceLog[]
   logsLoading?: boolean
+  sqlQueries: TraceSqlQuery[]
+  sqlLoading?: boolean
   activeTab: SpanDetailsTab
   onTabChange: (tab: SpanDetailsTab) => void
   logSpanFilter: string | null
@@ -136,9 +136,10 @@ function isSpanDetailsTab(value: string): value is SpanDetailsTab {
 export function TraceSpanDetails({
   span,
   spans,
-  startTime,
   logs,
   logsLoading = false,
+  sqlQueries,
+  sqlLoading = false,
   activeTab,
   onTabChange,
   logSpanFilter,
@@ -146,11 +147,6 @@ export function TraceSpanDetails({
   sqlSpanFilter,
   onClearSqlSpanFilter,
 }: TraceSpanDetailsProps) {
-  // Trace-wide scan — keep stable across span selection so switching spans stays cheap.
-  const sqlQueries = useMemo(
-    () => collectSqlQueries(spans, startTime),
-    [spans, startTime],
-  )
   const overview = resolveSpanOverview(span)
   const collapseAttributes = overview !== null
 
@@ -266,6 +262,7 @@ export function TraceSpanDetails({
             spans={spans}
             spanFilter={sqlSpanFilter}
             onClearSpanFilter={onClearSqlSpanFilter}
+            isLoading={sqlLoading}
           />
         </TabsContent>
 

@@ -15,21 +15,6 @@ const MIGRATIONS: Migration[] = [
     name: "initial",
     files: ["001_spans.sql", "001_traces.sql", "001_logs.sql", "001_metrics.sql"],
   },
-  {
-    version: 2,
-    name: "trace_http",
-    files: ["002_trace_http.sql"],
-  },
-  {
-    version: 3,
-    name: "trace_http_url",
-    files: ["003_trace_http_url.sql"],
-  },
-  {
-    version: 4,
-    name: "trace_http_route",
-    files: ["004_trace_http_route.sql"],
-  },
 ]
 
 async function execScript(conn: DbConn, sql: string): Promise<void> {

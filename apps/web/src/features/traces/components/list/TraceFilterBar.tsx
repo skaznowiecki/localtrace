@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
-import type { TraceFacets } from "../../api/traces.api"
+import type { FacetValue, TraceFacets } from "../../api/traces.api"
 import {
   splitQueryTokens,
   TRACE_FILTER_KEYS,
@@ -44,8 +44,21 @@ type ActivePhase =
   | { phase: "key"; key: string }
   | { phase: "value"; key: string; value: string }
 
-const DURATION_SUGGESTIONS = [">100ms", ">500ms", ">1s", "<100ms", "<500ms"]
-const METHOD_FALLBACKS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
+function facetSuggestions(
+  key: string,
+  items: FacetValue[],
+  needle: string,
+): Suggestion[] {
+  const lower = needle.toLowerCase()
+  return items
+    .filter((item) => !lower || item.value.toLowerCase().includes(lower))
+    .map((item) => ({
+      id: `${key}:${item.value}`,
+      label: item.value,
+      description: `${item.count} ${item.count === 1 ? "trace" : "traces"}`,
+      insert: `${key}:${item.value}`,
+    }))
+}
 
 function valueSuggestions(
   key: TraceFilterKey | string | null,
@@ -54,45 +67,19 @@ function valueSuggestions(
 ): Suggestion[] {
   if (!key) return []
 
-  const lower = needle.toLowerCase()
-  const filterValues = (values: string[]) =>
-    values
-      .filter((value) => !lower || value.toLowerCase().includes(lower))
-      .map((value) => ({
-        id: `${key}:${value}`,
-        label: value,
-        insert: `${key}:${value}`,
-      }))
-
   switch (key) {
     case "service":
-      return filterValues(facets.services)
+      return facetSuggestions(key, facets.services, needle)
     case "status":
-      return filterValues(facets.statuses)
+      return facetSuggestions(key, facets.statuses, needle)
     case "method":
-      return filterValues(
-        facets.methods.length > 0 ? facets.methods : METHOD_FALLBACKS,
-      )
+      return facetSuggestions(key, facets.methods, needle)
     case "http.status_code":
-      return filterValues(facets.httpStatusCodes.map(String))
+      return facetSuggestions(key, facets.httpStatusCodes, needle)
     case "url":
-      return facets.routes
-        .filter((route) => !lower || route.value.toLowerCase().includes(lower))
-        .map((route) => ({
-          id: `url:${route.value}`,
-          label: route.value,
-          description: `${route.count} ${route.count === 1 ? "trace" : "traces"}`,
-          insert: `url:${route.value}`,
-        }))
+      return facetSuggestions("url", facets.routes, needle)
     case "duration":
-      return DURATION_SUGGESTIONS.filter(
-        (value) => !lower || value.toLowerCase().includes(lower),
-      ).map((value) => ({
-        id: `duration:${value}`,
-        label: value,
-        description: "Compare against root duration",
-        insert: `duration:${value}`,
-      }))
+      return facetSuggestions("duration", facets.durations, needle)
     case "name":
       return needle
         ? [

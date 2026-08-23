@@ -1,1 +1,11 @@
-export type { SpanRecord, TraceStatus, TraceSummary, TraceListFilters, RouteFacet, TraceFacets } from "./span"
+export type {
+  BreakdownItem,
+  FacetValue,
+  SpanRecord,
+  TraceFacets,
+  TraceListFilters,
+  TraceSortField,
+  TraceSortOrder,
+  TraceStatus,
+  TraceSummary,
+} from "./span"

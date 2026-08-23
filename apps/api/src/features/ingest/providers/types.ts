@@ -1,6 +1,6 @@
-import type { LogRecord } from "../../logs/types/log"
-import type { MetricDataPoint } from "../../metrics/types/metric"
-import type { SpanRecord } from "../../traces/types/span"
+import type { LogRecord } from "@features/logs/types/log"
+import type { MetricDataPoint } from "@features/metrics/types/metric"
+import type { SpanRecord } from "@features/traces/types/span"
 
 export type IngestRequestContext = {
   path: string
@@ -9,12 +9,20 @@ export type IngestRequestContext = {
   maxBytes: number
 }
 
+export type IngestBatch = {
+  eventId?: string
+  spans: SpanRecord[]
+  logs: LogRecord[]
+  metrics: MetricDataPoint[]
+}
+
 type IngestProviderBase = {
   id: string
   parseTraces: (body: Uint8Array) => Promise<SpanRecord[]>
   parseLogs: (body: Uint8Array) => Promise<LogRecord[]>
   parseMetrics: (body: Uint8Array) => Promise<MetricDataPoint[]>
-  successResponse: () => Response
+  parseBatch?: (body: Uint8Array) => Promise<IngestBatch>
+  successResponse: (eventId?: string) => Response
 }
 
 export type IngestProvider = IngestProviderBase & {

@@ -1,6 +1,6 @@
 import { formatSpanDuration } from "@/lib/utils"
 
-export const WATERFALL_GRID = "grid grid-cols-[1.5rem_1fr]"
+export const WATERFALL_GRID = "grid grid-cols-[1.5rem_minmax(9rem,14rem)_minmax(0,1fr)]"
 
 type TraceTimeRulerProps = {
   totalDurationMs: number
@@ -24,6 +24,7 @@ export function TraceTimeRuler({ totalDurationMs }: TraceTimeRulerProps) {
 
   return (
     <div className={`${WATERFALL_GRID} shrink-0 border-b bg-muted/20`}>
+      <div />
       <div />
       <div className="px-2 py-2">
         <div className="relative h-5">
@@ -57,6 +58,7 @@ export function TraceTimeGrid({
 
   return (
     <div className={`${WATERFALL_GRID} pointer-events-none absolute inset-0`}>
+      <div />
       <div />
       <div className="relative px-2">
         {ticks.map((tick) => {

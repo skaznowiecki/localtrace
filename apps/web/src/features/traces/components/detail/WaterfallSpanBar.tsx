@@ -22,6 +22,7 @@ type WaterfallSpanBarProps = {
   span: FlatSpanRow
   totalDurationMs: number
   isSelected: boolean
+  muted?: boolean
   onSelect: (span: FlatSpanRow) => void
 }
 
@@ -29,6 +30,7 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
   span,
   totalDurationMs,
   isSelected,
+  muted = false,
   onSelect,
 }: WaterfallSpanBarProps) {
   const left =
@@ -65,6 +67,7 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
           "absolute inset-y-0 z-10 cursor-pointer overflow-hidden rounded-sm border border-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           isSelected &&
             "z-20 ring-2 ring-foreground/70 ring-offset-1 ring-offset-background",
+          muted && "opacity-35",
         )}
         style={{
           left: `${left}%`,

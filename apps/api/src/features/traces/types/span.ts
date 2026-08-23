@@ -1,4 +1,4 @@
-import type { Json } from "../../../shared/helpers"
+import type { Json } from "@shared/helpers"
 
 export type SpanRecord = {
   traceId: string
@@ -47,10 +47,29 @@ export type TraceSummary = {
   httpStatusCode?: number
   httpUrl?: string
   httpRoute?: string
+  breakdown: BreakdownItem[] | null
 }
+
+export type BreakdownItem = {
+  name: string
+  durationNs: number
+  spanCount: number
+}
+
+export type TraceSortField =
+  | "date"
+  | "root_service"
+  | "name"
+  | "duration"
+  | "spans"
+  | "status"
+
+export type TraceSortOrder = "asc" | "desc"
 
 export type TraceListFilters = {
   limit: number
+  sort: TraceSortField
+  order: TraceSortOrder
   service?: string
   status?: string
   method?: string
@@ -62,15 +81,16 @@ export type TraceListFilters = {
   sinceNs?: bigint
 }
 
-export type RouteFacet = {
+export type FacetValue = {
   value: string
   count: number
 }
 
 export type TraceFacets = {
-  services: string[]
-  statuses: string[]
-  methods: string[]
-  httpStatusCodes: number[]
-  routes: RouteFacet[]
+  services: FacetValue[]
+  statuses: FacetValue[]
+  methods: FacetValue[]
+  httpStatusCodes: FacetValue[]
+  routes: FacetValue[]
+  durations: FacetValue[]
 }

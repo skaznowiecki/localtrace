@@ -1,4 +1,4 @@
-import type { Json } from "../../../shared/helpers"
+import type { Json } from "@shared/helpers"
 
 export type LogRecord = {
   id: string
@@ -36,4 +36,33 @@ export type LogDto = {
   scope_version: string | null
   trace_id: string | null
   span_id: string | null
+}
+
+export type LogSortField = "date" | "service" | "severity"
+export type LogSortOrder = "asc" | "desc"
+
+export type LogListFilters = {
+  limit: number
+  sort: LogSortField
+  order: LogSortOrder
+  service?: string
+  severity?: string
+  message?: string
+  traceId?: string
+  sinceNs?: bigint
+}
+
+export type FacetValue = {
+  value: string
+  count: number
+}
+
+export type LogFacets = {
+  services: FacetValue[]
+  severities: FacetValue[]
+}
+
+export type LogFacetsDto = {
+  services: FacetValue[]
+  severities: FacetValue[]
 }

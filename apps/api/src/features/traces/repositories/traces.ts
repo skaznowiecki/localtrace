@@ -1,14 +1,18 @@
-import type { DbConn, SqlValue } from "../../../shared/db"
+import type { DbConn, SqlValue } from "@shared/db"
 import {
   INSERT_CHUNK,
   valuePlaceholders,
-} from "../../../shared/db"
-import { emptyToUndef, parseJson, toBigInt, toNumber } from "../../../shared/helpers"
-import type { Json } from "../../../shared/helpers"
+} from "@shared/db"
+import { emptyToUndef, parseJson, toBigInt, toNumber } from "@shared/helpers"
+import type { Json } from "@shared/helpers"
+import { parse as parseBreakdown } from "../helpers/breakdown"
 import type {
+  FacetValue,
   SpanRecord,
   TraceFacets,
   TraceListFilters,
+  TraceSortField,
+  TraceSortOrder,
   TraceSummary,
 } from "../types/span"
 
@@ -28,8 +32,32 @@ export type RebuildRow = {
 
 const TRACE_SELECT = `SELECT trace_id, root_span_id, root_observed, root_service, root_name,
         start_time_ns, end_time_ns, duration_ns, status_code, span_count,
-        http_method, http_status_code, http_url, http_route
+        http_method, http_status_code, http_url, http_route, service_breakdown
  FROM traces`
+
+const SORT_SQL: Record<TraceSortField, string> = {
+  date: "start_time_ns",
+  root_service: "root_service COLLATE NOCASE",
+  name: "root_name COLLATE NOCASE",
+  duration: "duration_ns",
+  spans: "span_count",
+  status:
+    "COALESCE(http_status_code, CASE status_code WHEN 'error' THEN 500 WHEN 'ok' THEN 200 ELSE 0 END)",
+}
+
+const ORDER_SQL: Record<TraceSortOrder, string> = {
+  asc: "ASC",
+  desc: "DESC",
+}
+
+function orderBy(filters: TraceListFilters): string {
+  const col = SORT_SQL[filters.sort]
+  const dir = ORDER_SQL[filters.order]
+  if (filters.sort === "date") {
+    return `ORDER BY ${col} ${dir} LIMIT ?`
+  }
+  return `ORDER BY ${col} ${dir}, start_time_ns DESC LIMIT ?`
+}
 
 const SPAN_SELECT = `SELECT trace_id, span_id, parent_span_id, name, kind,
         start_time_ns, end_time_ns, duration_ns, status_code, status_message,
@@ -58,6 +86,7 @@ function mapTrace(row: Record<string, unknown>): TraceSummary {
       row.http_status_code == null ? undefined : toNumber(row.http_status_code),
     httpUrl: emptyToUndef(row.http_url as string | null),
     httpRoute: emptyToUndef(row.http_route as string | null),
+    breakdown: parseBreakdown(parseJson(row.service_breakdown)),
   }
 }
 
@@ -140,51 +169,98 @@ export async function list(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
   params.push(filters.limit)
   const rows = await conn.all(
-    `${TRACE_SELECT}${where} ORDER BY start_time_ns DESC LIMIT ?`,
+    `${TRACE_SELECT}${where} ${orderBy(filters)}`,
     params,
   )
   return rows.map((row) => mapTrace(row))
 }
 
+const DURATION_BUCKET_VALUES = [
+  "0ms-10ms",
+  "10ms-50ms",
+  "50ms-100ms",
+  "100ms-250ms",
+  "250ms-500ms",
+  "500ms-1s",
+  "1s-2.5s",
+  "2.5s-5s",
+  "5s-10s",
+  ">10s",
+] as const
+
 export async function facets(conn: DbConn): Promise<TraceFacets> {
-  const services = await distinctStrings(
+  const services = await counted(
     conn,
-    `SELECT DISTINCT COALESCE(root_service, 'unknown_service') AS value
-     FROM traces ORDER BY value`,
+    `SELECT COALESCE(root_service, 'unknown_service') AS value, count(*) AS n
+     FROM traces
+     GROUP BY value
+     ORDER BY n DESC, value`,
   )
-  const methods = await distinctStrings(
+  const statuses = await counted(
     conn,
-    `SELECT DISTINCT http_method AS value
+    `SELECT status_code AS value, count(*) AS n
+     FROM traces
+     GROUP BY status_code
+     ORDER BY n DESC, value`,
+  )
+  const methods = await counted(
+    conn,
+    `SELECT http_method AS value, count(*) AS n
      FROM traces
      WHERE http_method IS NOT NULL AND http_method <> ''
-     ORDER BY value`,
+     GROUP BY http_method
+     ORDER BY n DESC, value`,
   )
-  const codesRows = await conn.all(
-    `SELECT DISTINCT http_status_code AS value
+  const httpStatusCodes = await counted(
+    conn,
+    `SELECT CAST(http_status_code AS TEXT) AS value, count(*) AS n
      FROM traces
      WHERE http_status_code IS NOT NULL
-     ORDER BY value`,
+     GROUP BY http_status_code
+     ORDER BY n DESC, value`,
   )
-  const httpStatusCodes = codesRows.map((row) => toNumber(row.value))
-
-  const routesRows = await conn.all(
+  const routes = await counted(
+    conn,
     `SELECT http_route AS value, count(*) AS n
      FROM traces
      WHERE http_route IS NOT NULL AND http_route <> ''
      GROUP BY http_route
      ORDER BY n DESC, value`,
   )
-  const routes = routesRows.map((row) => ({
-    value: String(row.value),
-    count: toNumber(row.n),
-  }))
+  const durationRows = await conn.all(
+    `SELECT
+       CASE
+         WHEN duration_ns < 10000000 THEN 0
+         WHEN duration_ns < 50000000 THEN 1
+         WHEN duration_ns < 100000000 THEN 2
+         WHEN duration_ns < 250000000 THEN 3
+         WHEN duration_ns < 500000000 THEN 4
+         WHEN duration_ns < 1000000000 THEN 5
+         WHEN duration_ns < 2500000000 THEN 6
+         WHEN duration_ns < 5000000000 THEN 7
+         WHEN duration_ns < 10000000000 THEN 8
+         ELSE 9
+       END AS bucket,
+       count(*) AS n
+     FROM traces
+     GROUP BY bucket
+     ORDER BY bucket`,
+  )
+  const durations: FacetValue[] = durationRows.map((row) => {
+    const index = toNumber(row.bucket)
+    return {
+      value: DURATION_BUCKET_VALUES[index] ?? ">10s",
+      count: toNumber(row.n),
+    }
+  })
 
   return {
     services,
-    statuses: ["ok", "error"],
+    statuses,
     methods,
     httpStatusCodes,
     routes,
+    durations,
   }
 }
 
@@ -413,6 +489,7 @@ export async function upsert(
                 http_status_code = excluded.http_status_code,
                 http_url = excluded.http_url,
                 http_route = excluded.http_route,
+                service_breakdown = NULL,
                 updated_at = CURRENT_TIMESTAMP`
 
   for (let i = 0; i < summaries.length; i += INSERT_CHUNK) {
@@ -429,7 +506,76 @@ export async function upsert(
   }
 }
 
-async function distinctStrings(conn: DbConn, sql: string): Promise<string[]> {
+async function counted(conn: DbConn, sql: string): Promise<FacetValue[]> {
   const rows = await conn.all(sql)
-  return rows.map((row) => String(row.value))
+  return rows.map((row) => ({
+    value: String(row.value),
+    count: toNumber(row.n),
+  }))
+}
+
+export type BreakdownSpan = {
+  traceId: string
+  spanId: string
+  parentSpanId?: string
+  name: string
+  kind: number
+  attributes: Json
+  startTimeNs: bigint
+  durationNs: bigint
+}
+
+export async function pending(conn: DbConn, limit: number): Promise<string[]> {
+  const rows = await conn.all(
+    `SELECT trace_id FROM traces
+     WHERE service_breakdown IS NULL
+     ORDER BY start_time_ns DESC
+     LIMIT ?`,
+    [limit],
+  )
+  return rows.map((row) => String(row.trace_id))
+}
+
+export async function forBreakdown(
+  conn: DbConn,
+  traceIds: string[],
+): Promise<BreakdownSpan[]> {
+  if (traceIds.length === 0) return []
+
+  const spans: BreakdownSpan[] = []
+  for (let i = 0; i < traceIds.length; i += INSERT_CHUNK) {
+    const chunk = traceIds.slice(i, i + INSERT_CHUNK)
+    const inList = chunk.map(() => "?").join(", ")
+    const rows = await conn.all(
+      `SELECT trace_id, span_id, parent_span_id, name, kind, attributes,
+              start_time_ns, duration_ns
+       FROM spans WHERE trace_id IN (${inList})`,
+      chunk,
+    )
+    for (const row of rows) {
+      spans.push({
+        traceId: String(row.trace_id),
+        spanId: String(row.span_id),
+        parentSpanId: emptyToUndef(row.parent_span_id as string | null),
+        name: String(row.name ?? ""),
+        kind: toNumber(row.kind),
+        attributes: parseJson(row.attributes) ?? null,
+        startTimeNs: toBigInt(row.start_time_ns),
+        durationNs: toBigInt(row.duration_ns),
+      })
+    }
+  }
+  return spans
+}
+
+export async function updateBreakdown(
+  conn: DbConn,
+  updates: { traceId: string; json: string }[],
+): Promise<void> {
+  for (const update of updates) {
+    await conn.run(`UPDATE traces SET service_breakdown = ? WHERE trace_id = ?`, [
+      update.json,
+      update.traceId,
+    ])
+  }
 }

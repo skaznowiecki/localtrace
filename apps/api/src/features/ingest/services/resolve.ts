@@ -1,5 +1,5 @@
 import type { Context } from "hono"
-import type { AppEnv } from "../../../app-env"
+import type { AppEnv } from "@/app-env"
 import { IngestError } from "../providers/errors"
 import type {
   IngestRequestContext,

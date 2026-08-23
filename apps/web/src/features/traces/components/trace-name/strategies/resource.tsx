@@ -5,7 +5,7 @@ import type { TraceNameInput, TraceNameStrategy } from "../types"
 /**
  * HTTP resource names in the traces list:
  * - `GET /users` → badge + path
- * - `OPTIONS` alone (CORS) + `path` override (full URL from attrs) → badge + URL
+ * - `OPTIONS` alone (CORS) + `path` override (route from the API) → badge + path
  * - `OPTIONS` alone without override → gray badge only
  */
 const RESOURCE_PATTERN =

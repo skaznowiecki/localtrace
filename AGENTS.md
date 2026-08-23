@@ -54,22 +54,36 @@ src/
 
 ### Span overview strategies (`features/traces`)
 
-Custom Overview panels for known span types (HTTP first). Detect via **semantic attributes**, not `span.kind`.
+Custom Overview panels for known span types. The **API** classifies (`type` + `payload_path`); Overview **matches `span.type`**, it does not re-parse attributes.
 
 ```
-features/traces/components/span-overview/
+apps/api/src/features/traces/helpers/span-type/
+  resolve.ts            # classify() — first-match
+  detectors/
+    index.ts            # ordered registry (more specific first)
+    redis.ts / mongo.ts / sql.ts / prisma.ts / s3.ts / openrouter.ts / express.ts / http.ts
+
+apps/web/src/features/traces/components/span-overview/
   types.ts              # SpanOverviewStrategy { id, match, render }
   resolve.ts            # first-match resolver
   KvRow.tsx             # shared label/value row
+  OverviewSection.tsx   # collapsible wrapper
   strategies/
     index.ts            # ordered registry (first match wins)
-    http.tsx            # HTTP Requests overview
+    sql.tsx             # postgres / mysql / sqlite / sql
+    prisma.tsx / redis.tsx / mongo.tsx / s3.tsx / openrouter.tsx / express.tsx / http.tsx
 ```
+
+**How to add a type**
+
+1. API: `helpers/span-type/detectors/<id>.ts` — `match` via semantic attributes (not `span.kind`); return `{ type, payloadPath? }`. Register in `detectors/index.ts` (more specific first).
+2. Web: `span-overview/strategies/<id>.tsx` — `match: (span) => span.type === "<id>"`. Register in `strategies/index.ts`.
+3. Do not change `SpanDto` shape (`type` + `payload_path` stay generic).
+
+Current detector order: redis → mongo → sql → prisma → s3 → openrouter → express → http.
 
 **Rules**
 
-- Add a strategy: implement `match(span)` + `render(span)`, register in `strategies/index.ts`.
-- Detection helpers live in `features/traces/lib/` (e.g. `http-spans.ts`, `sql-spans.ts`).
 - When a strategy matches, `TraceSpanDetails` collapses **Span Attributes** by default.
 - Attribute-value strategies (`attribute-value/strategies/`) are separate — they style leaf string values in the tree, not the Overview layout.
 
@@ -81,7 +95,7 @@ Shared presentational badges for HTTP method and status code. Use these everywhe
 features/traces/components/
   HttpMethodBadge.tsx       # GET / POST / … colored verb badge
   HttpStatusCodeBadge.tsx   # 200 / 404 / 500 … colored status badge
-  HttpPath.tsx               # path / URL with param + query highlights
+  HttpPath.tsx               # path / URL (origin muted on absolute URLs)
 ```
 
 **Rules**
@@ -195,11 +209,12 @@ apps/api/src/
   config.ts             LT_* env vars
   shared/               db/, helpers/, errors/
   features/
-    traces/             list GET + store (called by ingest)
-    logs/               list-by-trace GET + store
+    traces/             list GET + store (called by ingest) + tools/
+    logs/               list-by-trace GET + store + tools/
     metrics/            store only
-    catalog/            GET /api/services
-    ingest/             OTLP providers + ingest service
+    catalog/            GET /api/services + tools/
+    ingest/             OTLP + Sentry providers + ingest service
+    mcp/                Streamable HTTP /mcp — registers each feature's tools/
 ```
 
 ### Feature anatomy (API)
@@ -208,45 +223,46 @@ apps/api/src/
 features/traces/
   types/            records + HTTP DTOs (no logic)
   repositories/     SQL only
-  helpers/          store rules (trace-status) + shared DTO mapping (card)
-  services/         list.ts / facets.ts / with-spans.ts + store.ts
+  helpers/          store rules (trace-status) + span-type classifiers + DTO mapping (card)
+  schemas/          Zod for that service (`query` / `param` HTTP, `input` MCP)
+  services/         list.ts / facets.ts / with-spans.ts / sql.ts + store.ts
+  tools/            MCP tools, resources, prompts, examples — calls execute
   routes.ts         HTTP only
-  index.ts          routes + public store
+  index.ts          routes + public store + tools
 ```
 
 **Rules**
 
 - SQL lives in `repositories/`. Services call repos, not SQLite.
 - `routes.ts` calls services, not repos. List services return HTTP DTOs. Keep Record → DTO in the service file until a second caller needs it.
-- Query params go through `zValidator` + `c.req.valid("query")`. Do not parse `c.req.query()` by hand.
+- HTTP input (query, params, body) goes through `zValidator` + `c.req.valid(...)`. Never parse `c.req.query()` / `c.req.param()` by hand.
+- Zod lives in `schemas/<role>.ts`, one file per service. Services and tools do not define schemas.
 - Ingest does **not** have repositories. `features/ingest/services/ingest.ts` parses via a **provider** and calls `traces/logs/metrics` store.
 - Extract to `src/shared/` only when 2+ features use it (`db`, `helpers`, `errors`).
-- Trace summary rules (`trace-status`) live in `traces/helpers/`. List services are one `execute` per file (`list.ts`, `facets.ts`, `with-spans.ts`).
+- Trace summary rules (`trace-status`) live in `traces/helpers/`. List services are one `execute` per file (`list.ts`, `facets.ts`, `with-spans.ts`, `sql.ts`).
 - Import another feature only through its `index.ts`.
+- Agent surface lives in `features/<name>/tools/` (`register(server, db)`). `services/` stay execute-only. `features/mcp` only mounts `/mcp` and calls each feature's `tools.register`. `store` / ingest have no `tools/`.
 
 ### Ingest providers
 
-OTLP is one protocol. `providers/otlp/` must contain **only** OTLP-specific code. Request-level helpers that any protocol would reuse live in `providers/shared/`.
+Each ingest protocol is a provider. Request plumbing any protocol would reuse lives in `providers/shared/`. A protocol’s data model stays under `providers/<name>/`. Providers must not import each other.
 
 ```
 features/ingest/providers/
-  shared/           decode (gzip + maxBytes), media-type
+  shared/           request plumbing (decode, media-type, …)
   errors.ts
   types.ts
   resolve.ts        first-match registry
-  otlp/
-    helpers/        ids, values, paths — OTLP data model only
-    mappers/        OTLP request → records
-    json/
-    proto/
+  <protocol>/
+    helpers/        that protocol’s data model only
+    mappers/        protocol payload → records
 ```
 
 **Rules**
 
-- A helper is **generic** if it talks about the HTTP request, not a protocol: gzip / `identity`, body size, `Content-Type` parsing. Put it in `providers/shared/`.
-- A helper is **OTLP-specific** if it encodes the OTLP model: hex-vs-bytes IDs (`parseOtlpId`), `AnyValue` / `KeyValue` / `service.name`, `/v1/traces|logs|metrics`. Put it in `providers/otlp/helpers/`.
-- Do **not** put decode, media-type, or other request plumbing under `otlp/`. A new protocol (Zipkin, Jaeger, …) must reuse `providers/shared/` and add `providers/<name>/` — it should not import OTLP ids or values.
-- OTLP JSON / protobuf stay under `otlp/json/` and `otlp/proto/`. Register the provider in `providers/resolve.ts` (more specific first).
+- **Shared** = the HTTP request (body bytes, encoding, content-type, size). Not IDs, timestamps, or attributes of a protocol.
+- **Protocol-specific** = that protocol’s payload shape. New protocol → new `providers/<name>/` + register in `resolve.ts` (more specific first). Reuse `providers/shared/`; do not import another protocol.
+- Wire formats of the same protocol (JSON vs protobuf, …) are siblings under that protocol’s folder.
 
 ### Naming
 
@@ -258,16 +274,50 @@ A service file exposes **one** public function: `execute`. The file name is the 
 
 ```ts
 import * as list from "./services/list"
+import * as listSchema from "./schemas/list"
 await list.execute(db, c.req.valid("query"))
 ```
 
 Not `list.list`, not `listService`, not `withSpans.withSpans`.
 
-If a file would need two public functions, split it (`list.ts` / `facets.ts` / `with-spans.ts`). Private helpers in the same file are fine (query schema, Record → DTO). List query schemas are the exception to “one public function”: export `query` for `zValidator`.
+If a file would need two public functions, split it (`list.ts` / `facets.ts` / `with-spans.ts` / `sql.ts`). Private helpers in the same file are fine (Record → DTO). **No Zod in the service.** Input schemas live in `schemas/<same-name>.ts`.
 
 Write services live in `store.ts` and also export `execute`. The feature `index.ts` re-exports `{ execute as store }` so other features call `store(...)`.
 
-`ingest.ts` is the exception: one file, three signals (`ingestTraces` / `ingestLogs` / `ingestMetrics`). Do not cram unrelated reads into one service file the same way.
+`ingest.ts` is the exception: one file, three signals (`ingestTraces` / `ingestLogs` / `ingestMetrics`). Do not cram unrelated reads into one service file the same way. Mixed-signal envelopes use `services/envelope.ts` (`execute`).
+
+#### Schemas
+
+One file per service that takes input: `schemas/list.ts` next to `services/list.ts`. Same role name.
+
+```
+features/traces/schemas/
+  list.ts           query (HTTP) + input (MCP) + filters()
+  with-spans.ts     param (HTTP) + input (MCP)
+  sql.ts
+  facets.ts         input (empty object)
+```
+
+```ts
+import * as listSchema from "./schemas/list"
+
+app.get("/", zValidator("query", listSchema.query, onInvalid), async (c) => {
+  return c.json(await list.execute(c.get("db"), c.req.valid("query")))
+})
+
+server.registerTool("list_traces", { inputSchema: listSchema.input }, async (args) =>
+  jsonResult(() => list.execute(db, listSchema.filters(args))),
+)
+```
+
+**Rules**
+
+- `query` / `param` / `body` = HTTP encodings (query strings, route params).
+- `input` = MCP / typed caller (numbers, `.describe()`).
+- Mappers (`filters`) live in the schema file, not in the service or the tool.
+- Routes and tools import `schemas/`, never define Zod inline.
+- Lift to `shared/helpers` only when 2+ features need the same schema (`traceId`, `traceIdParam`).
+- `store` has no `schemas/` file (ingest records, not HTTP/MCP input).
 
 #### Repositories
 
@@ -282,9 +332,11 @@ Not `listTraces`, not `insertLogs`, not `loadTraceRebuildRows`. Prefix only when
 **Mount sub-apps with a prefix.** The sub-app declares relative paths (`/`, `/:id`), never the full URL. Compose in `app.ts`:
 
 ```
+app.route("/mcp", mcp)                 // ALL /
 app.route("/api/traces", logs)      // GET /:id/logs
-app.route("/api/traces", traces)    // GET /, GET /facets, GET /:id
+app.route("/api/traces", traces)    // GET /, GET /facets, GET /:id/sql, GET /:id
 app.route("/api/services", catalog) // GET /
+app.route("/api", ingest envelope)  // POST /:projectId/envelope
 app.route("/v1", ingest)            // POST /traces, /logs, /metrics
 ```
 
@@ -292,21 +344,24 @@ Not `app.route("/", routes())` with absolute paths (`/api/traces/:id`). That dup
 
 The **callee owns its details**. Callers pass the minimum; encoding, limits, and other request concerns stay inside the owner (`provider.decode(raw)`, not pre-resolved gzip/maxBytes).
 
-#### Query validation
+#### Validation
 
-List/query routes use `@hono/zod-validator`. The list service owns the Zod `query` schema (query → filters) and exports it next to `execute`. The route only wires the validator.
+All input validation is Zod. No hand-rolled checks (`if (value.length !== 32)`, regex + `throw`, custom `XError` for bad input, `c.req.query()` / `c.req.param()` by hand).
+
+- **HTTP** (query, params, body): `@hono/zod-validator` + `c.req.valid(...)`. The schema lives in `schemas/<role>.ts` (`export const query` / `param`) or `shared/helpers` when 2+ features share it. The route only wires the validator.
 
 ```ts
-app.get("/", zValidator("query", list.query, onInvalid), async (c) => {
+import * as listSchema from "./schemas/list"
+
+app.get("/", zValidator("query", listSchema.query, onInvalid), async (c) => {
   return c.json(await list.execute(c.get("db"), c.req.valid("query")))
 })
 ```
 
-**Rules**
-
-- Do **not** parse `c.req.query()` by hand. `execute` receives the validated output (`TraceListFilters`), not a raw `Record<string, string>`.
-- On failure, throw `BadRequestError` from the `zValidator` hook so `onError` still returns `{ error: message }`. Do not return Zod’s default body.
-- Empty query strings are absent (`""` → `undefined`). Missing `limit` defaults in the schema.
+- On HTTP failure, `onInvalid` (`shared/errors`) throws `BadRequestError` from the first Zod issue. Do not return Zod’s default body.
+- **Everywhere else** (ingest payloads, IDs, encodings): `schema.parse` (required) or `schema.safeParse` (optional / skip-invalid). Convert `ZodError` to a domain error only at the HTTP/ingest boundary.
+- Defaults and “empty means absent” (`""` → `undefined`) belong in the schema, not in `if` guards around it.
+- `execute` receives already-validated output, not a raw `Record<string, string>`.
 
 ### Data flow — ingest
 
@@ -316,6 +371,12 @@ POST /v1/traces
   → ingest/services/ingest.ts
   → providers/otlp/json | otlp/proto (gzip decode, content-type match → records)
   → traces/services/store → traces/repositories → SQLite
+
+POST /api/:projectId/envelope
+  → ingest/envelope routes (bodyLimit)
+  → ingest/services/envelope.ts
+  → providers/sentry (envelope parse → traces + logs)
+  → traces/logs store → SQLite
 ```
 
 ### Data flow — read
@@ -323,6 +384,15 @@ POST /v1/traces
 ```
 GET /api/traces
   → traces/routes → traces/services/list → traces/repositories → SQLite
+
+GET /api/traces/:id
+  → traces/routes → traces/services/with-spans (classify type + payload_path) → repositories → SQLite
+
+GET /api/traces/:id/sql
+  → traces/routes → traces/services/sql → traces/repositories → SQLite
+
+POST /mcp
+  → mcp/routes → traces|logs|catalog tools.register → services/execute → SQLite
 ```
 
 ### Error handling
@@ -342,16 +412,19 @@ SQLite is a single writer. `shared/db/client.ts` serializes all work through `ru
 | Task | Location |
 | --- | --- |
 | Trace list/detail DTO | `features/traces/types/dto.ts` |
+| Span type classifier | `features/traces/helpers/span-type/` (detector + Overview strategy) |
 | Trace SQL | `features/traces/repositories/` |
 | Trace store / summary rules | `features/traces/services/store.ts` + `helpers/` |
 | Ingest provider helpers (decode, media-type) | `features/ingest/providers/shared/` |
 | OTLP helpers (ids, values, paths) | `features/ingest/providers/otlp/helpers/` |
 | OTLP mappers | `features/ingest/providers/otlp/mappers/` |
 | OTLP JSON / protobuf | `features/ingest/providers/otlp/json/` / `otlp/proto/` |
+| Sentry envelope | `features/ingest/providers/sentry/` |
 | New ingest protocol | `features/ingest/providers/<name>/` |
 | HTTP route | `features/<name>/routes.ts` (relative paths) + prefix in `app.ts` |
-| List query schema | `features/<name>/services/list.ts` (`export const query`) + `zValidator` in `routes.ts` |
+| Validation schema | `features/<name>/schemas/<role>.ts` (`query` / `param` / `input`); `shared/helpers` if 2+ features; `zValidator` in `routes.ts` |
 | HTTP DTO mapping | the list service file until a second caller needs it (`helpers/` after that) |
+| MCP tool / resource / prompt | `features/<name>/tools/` (`register`); HTTP mount in `features/mcp` |
 | Shared helpers | `src/shared/helpers/` |
 | Schema migration | `apps/api/src/shared/db/sql/` + register in `shared/db/migrate.ts` |
 | App config | `src/config.ts` |
@@ -371,19 +444,26 @@ apps/api/src/shared/db/
     001_traces.sql
     001_logs.sql
     001_metrics.sql
-    002_trace_http.sql
-    003_trace_http_url.sql
-    004_trace_http_route.sql
+```
+
+### No backwards compatibility
+
+This is a **local-only** tracer. Data is disposable. **Never** design for old rows, old columns, or old API shapes.
+
+- **Wipe and restart.** Delete `./data/local-tracer.db` (and `-wal` / `-shm`) and re-ingest. Do this for any schema or denormalized-field change.
+- **Edit `001_*.sql` in place.** Do not add `002_…` / extra columns / dual fields just to keep existing DBs working (`http_url` path + `http_full_url`, optional DTO leftovers, frontend `??` fallbacks for missing ingest fields).
+- **No backfills. No dual-write. No compat DTOs.** Change the field meaning, update callers, wipe.
+- After a wipe, expected: `schema_meta.version = 1`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
+
+```
+rm -f ./data/local-tracer.db ./data/local-tracer.db-wal ./data/local-tracer.db-shm
+# restart API — or: just migrate
 ```
 
 ### Rules
 
-- Incremental changes use numbered files (`002_<name>.sql`, …).
-- **All DDL goes in `apps/api/src/shared/db/sql/`**. Register numbered migrations in `MIGRATIONS` in `shared/db/migrate.ts`.
-- **Never edit a migration that has already been applied** to a DB you care about. Add a new numbered file instead.
-- **Never write backfills.** New/changed columns only need to be populated for **newly ingested** data. When existing rows must reflect a schema/logic change during dev, **wipe the DB and restart**.
-- **During local dev**, if you need to re-run from scratch: delete `./data/local-tracer.db`, edit the migration SQL, restart.
-- Migrations must be **sequential** (v1, v2, v3…). The runner rejects gaps.
+- **All DDL goes in `apps/api/src/shared/db/sql/`**. Register files in `MIGRATIONS` in `shared/db/migrate.ts`.
+- Migrations must be **sequential** (v1, v2, …). The runner rejects gaps. Prefer a single v1 while this stays a local app.
 - Each `.sql` file can contain multiple statements separated by `;`. Do not put semicolons inside string literals.
 - `schema_meta` is managed by the runner — do not create or modify it in migration files.
 
@@ -413,17 +493,9 @@ sqlite3 ./data/local-tracer.db "SELECT version FROM schema_meta;"
 sqlite3 ./data/local-tracer.db "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 ```
 
-Expected on a fresh DB: `schema_meta.version = 4`, tables `logs`, `metrics`, `schema_meta`, `spans`, `traces`.
-
-### Adding a migration
-
-1. Create `apps/api/src/shared/db/sql/00N_<name>.sql`.
-2. Append an entry to `MIGRATIONS` in `shared/db/migrate.ts`.
-3. Restart the API (or `just migrate`).
-
-### Changing schema in dev (wipe + edit)
+### Changing schema
 
 1. Stop the API.
-2. Delete or move `./data/local-tracer.db`.
-3. Edit the migration SQL.
-4. Restart — migrations run on a fresh DB.
+2. Edit `001_*.sql` (and types / store / DTOs to match).
+3. Delete `./data/local-tracer.db` (+ WAL/SHM).
+4. Restart — migrations run on a fresh DB. Re-ingest.

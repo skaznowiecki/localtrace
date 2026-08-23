@@ -24,9 +24,8 @@ import {
   formatTraceDate,
 } from "@/lib/utils"
 
-import { extractHttpSpanMeta } from "../../lib/http-spans"
 import { getServiceColor } from "../../service-colors"
-import type { Span, TraceListItem, TraceStatus } from "../../types"
+import type { TraceListItem, TraceStatus } from "../../types"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpPath } from "../display/HttpPath"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
@@ -34,27 +33,8 @@ import { TraceName } from "../trace-name"
 
 type TraceDrawerHeaderProps = {
   trace: TraceListItem
-  spans: Span[]
   fullscreen: boolean
   onFullscreenChange: (fullscreen: boolean) => void
-}
-
-function extractRootHttpMeta(spans: Span[]) {
-  const root =
-    spans.find((span) => !span.parentId) ??
-    spans.find((span) => span.startOffsetMs === 0) ??
-    spans[0]
-
-  if (!root) {
-    return { method: null, url: null, statusCode: null }
-  }
-
-  const meta = extractHttpSpanMeta(root)
-  return {
-    method: meta.method,
-    url: meta.url,
-    statusCode: meta.statusCode,
-  }
 }
 
 function statusAccentClass(status: TraceStatus): string {
@@ -81,27 +61,14 @@ function StatusPill({ status }: { status: TraceStatus }) {
   )
 }
 
-/** Prefer HTTP outcome for header chrome; child span errors stay in the waterfall. */
-function resolveHeaderStatus(
-  traceStatus: TraceStatus,
-  httpStatusCode: string | null,
-): TraceStatus {
-  if (httpStatusCode == null) return traceStatus
-  const code = Number(httpStatusCode)
-  if (!Number.isFinite(code)) return traceStatus
-  return code >= 400 ? "error" : "ok"
-}
-
 export function TraceDrawerHeader({
   trace,
-  spans,
   fullscreen,
   onFullscreenChange,
 }: TraceDrawerHeaderProps) {
   const [copied, setCopied] = useState(false)
-  const http = extractRootHttpMeta(spans)
   const serviceColor = getServiceColor(trace.rootService)
-  const headerStatus = resolveHeaderStatus(trace.status, http.statusCode)
+  const displayUrl = trace.httpUrl
 
   const copyLink = async () => {
     try {
@@ -121,7 +88,7 @@ export function TraceDrawerHeader({
     <header
       className={cn(
         "shrink-0 border-b border-t-2 bg-muted/20",
-        statusAccentClass(headerStatus),
+        statusAccentClass(trace.status),
       )}
     >
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
@@ -147,7 +114,7 @@ export function TraceDrawerHeader({
             </span>
             <span className="shrink-0 text-muted-foreground/60">›</span>
             <span className="min-w-0 truncate">
-              <TraceName name={trace.name} path={trace.httpUrl} />
+              <TraceName name={trace.name} path={trace.httpRoute} />
             </span>
             <span className="shrink-0 text-muted-foreground/60">›</span>
             <span className="shrink-0 font-semibold text-foreground">
@@ -239,19 +206,24 @@ export function TraceDrawerHeader({
 
         <span className="h-3.5 w-px bg-border" />
 
-        {http.url ? (
+        {displayUrl ? (
           <>
-            {http.method ? <HttpMethodBadge method={http.method} /> : null}
-            <HttpPath value={http.url} className="text-[13px] font-semibold" />
+            {trace.httpMethod ? (
+              <HttpMethodBadge method={trace.httpMethod} />
+            ) : null}
+            <HttpPath value={displayUrl} className="text-[13px] font-semibold" />
           </>
         ) : (
-          <TraceName name={trace.name} path={trace.httpUrl} />
+          <TraceName name={trace.name} path={trace.httpRoute} />
         )}
 
-        {http.statusCode ? (
-          <HttpStatusCodeBadge code={http.statusCode} className="text-[11px]" />
+        {trace.httpStatusCode ? (
+          <HttpStatusCodeBadge
+            code={trace.httpStatusCode}
+            className="text-[11px]"
+          />
         ) : (
-          <StatusPill status={headerStatus} />
+          <StatusPill status={trace.status} />
         )}
 
         <span className="text-[12px] text-muted-foreground tabular-nums">

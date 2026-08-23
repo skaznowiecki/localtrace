@@ -6,8 +6,6 @@ import {
 } from "./span-groups"
 import type { FlatSpanRow, Span, SpanTreeNode, WaterfallRow } from "../types"
 
-const PACK_EPSILON_MS = 0.01
-
 export function buildSpanTree(spans: Span[]): SpanTreeNode[] {
   const nodes = new Map<string, SpanTreeNode>()
   const roots: SpanTreeNode[] = []
@@ -60,6 +58,7 @@ function toFlatSpan(node: SpanTreeNode, expandedIds: Set<string>): FlatSpanRow {
 }
 
 function toGroupFlatSpan(group: SpanGroupNode): FlatSpanRow {
+  const first = group.members[0]
   return {
     id: group.id,
     parentId: group.parentId,
@@ -70,12 +69,14 @@ function toGroupFlatSpan(group: SpanGroupNode): FlatSpanRow {
     statusMessage: null,
     startOffsetMs: group.startOffsetMs,
     durationMs: group.durationMs,
-    attributes: {},
+    attributes: first?.attributes ?? {},
     events: [],
     links: [],
     resourceAttributes: {},
     scopeName: null,
     scopeVersion: null,
+    type: first?.type ?? null,
+    payloadPath: first?.payloadPath ?? null,
     children: [],
     depth: group.depth,
     hasChildren: true,
@@ -84,64 +85,28 @@ function toGroupFlatSpan(group: SpanGroupNode): FlatSpanRow {
   }
 }
 
-function packSiblings(siblings: SpanTreeNode[]): SpanTreeNode[][] {
-  const sorted = [...siblings].sort((a, b) => a.startOffsetMs - b.startOffsetMs)
-  const lanes: SpanTreeNode[][] = []
-  const laneEnds: number[] = []
-
-  for (const sibling of sorted) {
-    const start = sibling.startOffsetMs
-    const end = sibling.startOffsetMs + sibling.durationMs
-    const hasChildren = sibling.children.length > 0
-
-    let placed = false
-    for (let index = 0; index < lanes.length; index += 1) {
-      if (laneEnds[index] > start - PACK_EPSILON_MS) continue
-      if (hasChildren && lanes[index].some((span) => span.children.length > 0)) {
-        continue
-      }
-
-      lanes[index].push(sibling)
-      laneEnds[index] = end
-      placed = true
-      break
-    }
-
-    if (!placed) {
-      lanes.push([sibling])
-      laneEnds.push(end)
-    }
-  }
-
-  return lanes
-}
-
 function emitSpanLanes(
   siblings: SpanTreeNode[],
   expandedIds: Set<string>,
   expandedGroupIds: Set<string>,
   rows: WaterfallRow[],
 ) {
-  const lanes = packSiblings(siblings)
+  const sorted = [...siblings].sort((a, b) => a.startOffsetMs - b.startOffsetMs)
 
-  for (const lane of lanes) {
-    const laneSpans = lane.map((node) => toFlatSpan(node, expandedIds))
-    const expandTarget = laneSpans.find((span) => span.hasChildren) ?? null
-
+  for (const span of sorted) {
+    const flat = toFlatSpan(span, expandedIds)
     rows.push({
-      id: lane.map((span) => span.id).join("|"),
-      depth: lane[0]?.depth ?? 0,
-      laneSpans,
-      expandSpanId: expandTarget?.id ?? null,
-      isExpanded: expandTarget ? expandTarget.isExpanded : false,
+      id: span.id,
+      depth: span.depth,
+      laneSpans: [flat],
+      expandSpanId: flat.hasChildren ? span.id : null,
+      isExpanded: flat.isExpanded,
       expandGroupId: null,
       isGroupExpanded: false,
     })
 
-    for (const span of lane) {
-      if (expandedIds.has(span.id) && span.children.length > 0) {
-        emitPackedSiblings(span.children, expandedIds, expandedGroupIds, rows)
-      }
+    if (expandedIds.has(span.id) && span.children.length > 0) {
+      emitPackedSiblings(span.children, expandedIds, expandedGroupIds, rows)
     }
   }
 }

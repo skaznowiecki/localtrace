@@ -30,10 +30,52 @@ export const TRACE_FILTER_KEYS: TraceFilterKeyDef[] = [
   {
     key: "duration",
     label: "duration",
-    description: "Duration with >, <, or >= / <= (e.g. >100ms)",
+    description: "Duration with >, <, a range, or >= / <= (e.g. >100ms, 100ms-500ms)",
   },
   { key: "name", label: "name", description: "Root span name contains" },
 ]
+
+export type TraceSortField =
+  | "date"
+  | "root_service"
+  | "name"
+  | "duration"
+  | "spans"
+  | "status"
+
+export type TraceSortOrder = "asc" | "desc"
+
+export const TRACE_SORT_FIELDS = [
+  "date",
+  "root_service",
+  "name",
+  "duration",
+  "spans",
+  "status",
+] as const satisfies readonly TraceSortField[]
+
+export const DEFAULT_TRACE_SORT: TraceSortField = "date"
+export const DEFAULT_TRACE_ORDER: TraceSortOrder = "desc"
+
+export const TRACE_SORT_DEFAULT_ORDER: Record<TraceSortField, TraceSortOrder> = {
+  date: "desc",
+  root_service: "asc",
+  name: "asc",
+  duration: "desc",
+  spans: "desc",
+  status: "desc",
+}
+
+export function isTraceSortField(value: unknown): value is TraceSortField {
+  return (
+    typeof value === "string" &&
+    (TRACE_SORT_FIELDS as readonly string[]).includes(value)
+  )
+}
+
+export function isTraceSortOrder(value: unknown): value is TraceSortOrder {
+  return value === "asc" || value === "desc"
+}
 
 export type TraceQueryFilters = {
   service?: string
@@ -46,12 +88,15 @@ export type TraceQueryFilters = {
   durationMaxNs?: number
   /** RFC3339 lower bound on trace start time (API `since`). Not part of `?q=`. */
   since?: string
+  /** List sort column. Not part of `?q=`. */
+  sort?: TraceSortField
+  /** List sort direction. Not part of `?q=`. */
+  order?: TraceSortOrder
 }
 
-export type DurationToken = {
-  op: ">" | ">=" | "<" | "<="
-  valueNs: number
-}
+export type DurationToken =
+  | { kind: "cmp"; op: ">" | ">=" | "<" | "<="; valueNs: number }
+  | { kind: "range"; minNs: number; maxExclusiveNs: number }
 
 export type ActiveToken = {
   /** Inclusive start index of the token in the query string. */
@@ -83,15 +128,9 @@ function normalizeKey(raw: string): TraceFilterKey | null {
   return KEY_ALIASES[raw.trim().toLowerCase()] ?? null
 }
 
-function parseDurationValue(raw: string): number | null {
-  const trimmed = raw.trim().toLowerCase()
-  const match = trimmed.match(/^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m)?$/)
-  if (!match) return null
+type DurationUnit = "ns" | "us" | "µs" | "ms" | "s" | "m"
 
-  const amount = Number(match[1])
-  if (!Number.isFinite(amount)) return null
-
-  const unit = match[2] ?? "ms"
+function toNs(amount: number, unit: DurationUnit): number {
   switch (unit) {
     case "ns":
       return Math.round(amount)
@@ -104,20 +143,64 @@ function parseDurationValue(raw: string): number | null {
       return Math.round(amount * 1_000_000_000)
     case "m":
       return Math.round(amount * 60_000_000_000)
-    default:
-      return null
   }
+}
+
+function parseDurationParts(
+  raw: string,
+): { amount: number; unit: DurationUnit | null } | null {
+  const trimmed = raw.trim().toLowerCase()
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m)?$/)
+  if (!match) return null
+
+  const amount = Number(match[1])
+  if (!Number.isFinite(amount)) return null
+  return {
+    amount,
+    unit: (match[2] as DurationUnit | undefined) ?? null,
+  }
+}
+
+function parseDurationValue(raw: string, defaultUnit: DurationUnit = "ms"): number | null {
+  const parts = parseDurationParts(raw)
+  if (!parts) return null
+  return toNs(parts.amount, parts.unit ?? defaultUnit)
 }
 
 export function parseDurationToken(raw: string): DurationToken | null {
   const trimmed = raw.trim()
-  const match = trimmed.match(/^(>=|<=|>|<)(.+)$/)
-  if (!match) return null
+  const cmp = trimmed.match(/^(>=|<=|>|<)(.+)$/)
+  if (cmp) {
+    const valueNs = parseDurationValue(cmp[2]!)
+    if (valueNs == null) return null
+    return { kind: "cmp", op: cmp[1] as ">" | ">=" | "<" | "<=", valueNs }
+  }
 
-  const op = match[1] as DurationToken["op"]
-  const valueNs = parseDurationValue(match[2])
-  if (valueNs == null) return null
-  return { op, valueNs }
+  const range = trimmed.match(/^(.+?)-(.+)$/)
+  if (!range) return null
+
+  const left = parseDurationParts(range[1]!)
+  const right = parseDurationParts(range[2]!)
+  if (!left || !right) return null
+
+  const unit = right.unit ?? left.unit ?? "ms"
+  const minNs = toNs(left.amount, left.unit ?? unit)
+  const maxExclusiveNs = toNs(right.amount, right.unit ?? unit)
+  if (maxExclusiveNs <= minNs) return null
+  return { kind: "range", minNs, maxExclusiveNs }
+}
+
+function durationBounds(token: DurationToken): {
+  minNs?: number
+  maxNs?: number
+} {
+  if (token.kind === "range") {
+    return { minNs: token.minNs, maxNs: token.maxExclusiveNs - 1 }
+  }
+  if (token.op === ">" || token.op === ">=") {
+    return { minNs: token.valueNs }
+  }
+  return { maxNs: token.valueNs }
 }
 
 /** Split query into space-separated tokens, respecting simple quoting. */
@@ -205,11 +288,9 @@ export function parseQuery(query: string): TraceQueryFilters {
       case "duration": {
         const duration = parseDurationToken(value)
         if (!duration) break
-        if (duration.op === ">" || duration.op === ">=") {
-          filters.durationMinNs = duration.valueNs
-        } else {
-          filters.durationMaxNs = duration.valueNs
-        }
+        const bounds = durationBounds(duration)
+        if (bounds.minNs != null) filters.durationMinNs = bounds.minNs
+        if (bounds.maxNs != null) filters.durationMaxNs = bounds.maxNs
         break
       }
     }
@@ -229,12 +310,8 @@ export function serializeFilters(filters: TraceQueryFilters): string {
   }
   if (filters.url) parts.push(`url:${quoteIfNeeded(filters.url)}`)
   if (filters.name) parts.push(`name:${quoteIfNeeded(filters.name)}`)
-  if (filters.durationMinNs != null) {
-    parts.push(`duration:>${formatNs(filters.durationMinNs)}`)
-  }
-  if (filters.durationMaxNs != null) {
-    parts.push(`duration:<${formatNs(filters.durationMaxNs)}`)
-  }
+  const durationToken = serializeDurationToken(filters)
+  if (durationToken) parts.push(`duration:${durationToken}`)
 
   return parts.join(" ")
 }
@@ -265,8 +342,9 @@ function tokenMatchesKey(
  * unrelated tokens (order and unknown keys). Does not round-trip through
  * parseQuery/serializeFilters.
  *
- * For `duration`, `value` is the raw comparison (e.g. `>100ms`). Clearing
- * removes all `duration:` tokens; setting replaces them with one token.
+ * For `duration`, `value` is the raw comparison or range (e.g. `>100ms`,
+ * `100ms-500ms`). Clearing removes all `duration:` tokens; setting replaces
+ * them with one token.
  */
 export function setFilterInQuery(
   query: string,
@@ -339,17 +417,8 @@ function currentFilterValue(
       return filters.url ?? null
     case "name":
       return filters.name ?? null
-    case "duration": {
-      // Represent the active bound(s) as serialized duration token values.
-      // Facet presets are single-sided, so prefer min then max.
-      if (filters.durationMinNs != null) {
-        return `>${formatNs(filters.durationMinNs)}`
-      }
-      if (filters.durationMaxNs != null) {
-        return `<${formatNs(filters.durationMaxNs)}`
-      }
-      return null
-    }
+    case "duration":
+      return serializeDurationToken(filters)
   }
 }
 
@@ -365,7 +434,9 @@ function valuesEqual(
     const da = parseDurationToken(a)
     const db = parseDurationToken(b)
     if (da && db) {
-      return da.op === db.op && da.valueNs === db.valueNs
+      const aBounds = durationBounds(da)
+      const bBounds = durationBounds(db)
+      return aBounds.minNs === bBounds.minNs && aBounds.maxNs === bBounds.maxNs
     }
   }
   return a === b
@@ -387,10 +458,22 @@ function quoteIfNeeded(value: string): string {
 }
 
 function formatNs(ns: number): string {
+  if (ns === 0) return "0ms"
   if (ns % 1_000_000_000 === 0) return `${ns / 1_000_000_000}s`
   if (ns % 1_000_000 === 0) return `${ns / 1_000_000}ms`
   if (ns % 1_000 === 0) return `${ns / 1_000}us`
   return `${ns}ns`
+}
+
+function serializeDurationToken(filters: TraceQueryFilters): string | null {
+  const min = filters.durationMinNs
+  const max = filters.durationMaxNs
+  if (min != null && max != null) {
+    return `${formatNs(min)}-${formatNs(max + 1)}`
+  }
+  if (min != null) return `>${formatNs(min)}`
+  if (max != null) return `<${formatNs(max)}`
+  return null
 }
 
 /**
@@ -482,5 +565,11 @@ export function filtersToSearchParams(
     params.set("duration_max_ns", String(filters.durationMaxNs))
   }
   if (filters.since) params.set("since", filters.since)
+  const sort = filters.sort ?? DEFAULT_TRACE_SORT
+  const order = filters.order ?? DEFAULT_TRACE_ORDER
+  if (sort !== DEFAULT_TRACE_SORT || order !== DEFAULT_TRACE_ORDER) {
+    params.set("sort", sort)
+    params.set("order", order)
+  }
   return params
 }

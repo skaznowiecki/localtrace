@@ -16,14 +16,20 @@ export type TraceListItem = {
   durationMs: number
   spanCount: number
   status: TraceStatus
-  /** HTTP response status from the root span (enriched on the frontend from detail). */
   httpStatusCode: string | null
-  /**
-   * Full request URL from root-span attributes when `name` is method-only
-   * (e.g. OPTIONS). Frontend enrichment only — not a backend field.
-   */
+  httpMethod: string | null
+  /** Absolute request URL from the root span. */
   httpUrl: string | null
+  /** Normalized route (e.g. `/users/:id`) for list display. */
+  httpRoute: string | null
   startTime: string
+  breakdown: TraceBreakdownItem[] | null
+}
+
+export type TraceBreakdownItem = {
+  name: string
+  durationMs: number
+  share: number
 }
 
 export type Span = {
@@ -42,6 +48,8 @@ export type Span = {
   resourceAttributes: JsonValue
   scopeName: string | null
   scopeVersion: string | null
+  type: string | null
+  payloadPath: string | null
 }
 
 export type TraceDetail = {
@@ -61,6 +69,19 @@ export type TraceLog = {
   scopeVersion: string | null
   traceId: string | null
   spanId: string | null
+}
+
+export type TraceSqlQuery = {
+  spanId: string
+  name: string
+  statement: string
+  durationMs: number
+  startOffsetMs: number
+  startedAt: string | null
+  dbSystem: string | null
+  host: string | null
+  status: TraceStatus
+  share: number
 }
 
 export type SpanTreeNode = Span & {

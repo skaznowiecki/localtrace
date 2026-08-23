@@ -1,9 +1,9 @@
 import type { Context } from "hono"
-import type { AppEnv } from "../../../app-env"
-import { log } from "../../../shared/helpers"
-import { store as storeTraces } from "../../traces"
-import { store as storeLogs } from "../../logs"
-import { store as storeMetrics } from "../../metrics"
+import type { AppEnv } from "@/app-env"
+import { log } from "@shared/helpers"
+import { store as storeTraces } from "@features/traces"
+import { store as storeLogs } from "@features/logs"
+import { store as storeMetrics } from "@features/metrics"
 import type { ResolvedIngestProvider } from "../providers/types"
 
 export async function ingestTraces(

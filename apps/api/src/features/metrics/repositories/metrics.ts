@@ -1,5 +1,5 @@
-import type { DbConn, SqlValue } from "../../../shared/db"
-import { INSERT_CHUNK, valuePlaceholders } from "../../../shared/db"
+import type { DbConn, SqlValue } from "@shared/db"
+import { INSERT_CHUNK, valuePlaceholders } from "@shared/db"
 import type { MetricDataPoint } from "../types/metric"
 
 const METRIC_COLUMNS = 29

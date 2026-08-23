@@ -22,7 +22,7 @@ export function decodeBody(
 
   let out: Uint8Array
   try {
-    out = Bun.gunzipSync(body)
+    out = Bun.gunzipSync(body as unknown as ArrayBuffer)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     throw new IngestError("invalid_payload", `gzip decode failed: ${message}`)

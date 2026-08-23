@@ -38,7 +38,13 @@ function TracesHeaderActions() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  if (!pathname.startsWith("/traces") && pathname !== "/") return null
+  if (
+    !pathname.startsWith("/traces") &&
+    !pathname.startsWith("/logs") &&
+    pathname !== "/"
+  ) {
+    return null
+  }
   return <TraceLiveHeader />
 }
 

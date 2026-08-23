@@ -1,4 +1,4 @@
-import { readAttr } from "../../../shared/helpers"
+import { readAttr } from "@shared/helpers"
 import type { SpanRecord, TraceStatus } from "../types/span"
 
 const HTTP_METHODS = [
@@ -60,6 +60,44 @@ export function extractHttpUrl(span: Pick<SpanRecord, "attributes">): string | u
   if (!full) return undefined
   const fromUrl = pathFromUrl(full.trim())
   return fromUrl || undefined
+}
+
+/** Absolute request URL for display. Path/route stays in `extractHttpUrl`. */
+export function extractHttpFullUrl(
+  span: Pick<SpanRecord, "attributes">,
+): string | undefined {
+  const full = readAttr(span.attributes, ["url.full", "http.url"])?.trim()
+  if (full) return full
+
+  const scheme = readAttr(span.attributes, ["url.scheme", "http.scheme"])?.trim()
+  const host = httpHost(span)
+  const path = extractHttpUrl(span)
+  if (!scheme || !host || !path) return undefined
+
+  const slashPath = path.startsWith("/") ? path : `/${path}`
+  return `${scheme}://${host}${slashPath}`
+}
+
+function httpHost(span: Pick<SpanRecord, "attributes">): string | undefined {
+  const host = readAttr(span.attributes, ["http.host", "url.host"])?.trim()
+  if (host) return host
+
+  return hostWithPort(
+    readAttr(span.attributes, ["server.address", "net.host.name"]),
+    readAttr(span.attributes, ["server.port", "net.host.port"]),
+  )
+}
+
+function hostWithPort(
+  hostname: string | undefined,
+  port: string | undefined,
+): string | undefined {
+  if (!hostname) return undefined
+  const trimmed = hostname.trim()
+  if (!trimmed) return undefined
+  if (!port || port === "80" || port === "443") return trimmed
+  if (trimmed.includes(":")) return trimmed
+  return `${trimmed}:${port}`
 }
 
 function stripQuery(value: string): string {

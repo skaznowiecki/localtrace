@@ -1,4 +1,4 @@
-import type { Db } from "../../../shared/db"
+import type { Db } from "@shared/db"
 import * as repo from "../repositories/traces"
 import type { TraceFacetsDto } from "../types/dto"
 import type { TraceFacets } from "../types/span"
@@ -10,6 +10,7 @@ function dto(value: TraceFacets): TraceFacetsDto {
     methods: value.methods,
     http_status_codes: value.httpStatusCodes,
     routes: value.routes,
+    durations: value.durations,
   }
 }
 

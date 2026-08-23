@@ -10,14 +10,12 @@ import { TraceName } from "../trace-name"
 
 type TraceTableRowProps = {
   trace: TraceListItem
-  maxDurationMs: number
   isSelected: boolean
   onSelect: (traceId: string) => void
 }
 
 export function TraceTableRow({
   trace,
-  maxDurationMs,
   isSelected,
   onSelect,
 }: TraceTableRowProps) {
@@ -34,15 +32,15 @@ export function TraceTableRow({
         <ServiceBadge service={trace.rootService} />
       </TableCell>
       <TableCell className="max-w-[280px] truncate px-3 py-2 text-[11px]">
-        <TraceName name={trace.name} path={trace.httpUrl} />
+        <TraceName name={trace.name} path={trace.httpRoute} />
       </TableCell>
-      <TableCell className="px-3 py-2 text-right font-mono text-[11px] tabular-nums">
+      <TableCell className="px-3 py-2 text-center font-mono text-[11px] tabular-nums">
         {formatSpanDuration(trace.durationMs)}
       </TableCell>
-      <TableCell className="px-3 py-2 text-right font-mono text-[11px] tabular-nums">
+      <TableCell className="px-3 py-2 text-center font-mono text-[11px] tabular-nums">
         {trace.spanCount}
       </TableCell>
-      <TableCell className="px-3 py-2">
+      <TableCell className="px-3 py-2 text-center">
         {trace.httpStatusCode ? (
           <HttpStatusCodeBadge code={trace.httpStatusCode} />
         ) : (
@@ -50,10 +48,7 @@ export function TraceTableRow({
         )}
       </TableCell>
       <TableCell className="px-3 py-2">
-        <TraceDurationBar
-          durationMs={trace.durationMs}
-          maxDurationMs={maxDurationMs}
-        />
+        <TraceDurationBar breakdown={trace.breakdown} />
       </TableCell>
     </TableRow>
   )

@@ -1,8 +1,13 @@
-import type { Db } from "../../../shared/db"
-import { normalizeRoutePath } from "../../../shared/helpers"
+import type { Db } from "@shared/db"
+import { normalizeRoutePath } from "@shared/helpers"
 import type { SpanRecord, TraceSummary } from "../types/span"
 import * as repo from "../repositories/traces"
-import { extractHttpFields, extractHttpUrl, resolveTraceStatus } from "../helpers/trace-status"
+import {
+  extractHttpFields,
+  extractHttpFullUrl,
+  extractHttpUrl,
+  resolveTraceStatus,
+} from "../helpers/trace-status"
 
 function summaryFromRebuild(row: repo.RebuildRow): TraceSummary {
   const root = {
@@ -11,8 +16,8 @@ function summaryFromRebuild(row: repo.RebuildRow): TraceSummary {
     attributes: row.rootAttributes,
   }
   const http = extractHttpFields(root)
-  const httpUrl = extractHttpUrl(root)
-  const httpRoute = httpUrl ? normalizeRoutePath(httpUrl) : undefined
+  const path = extractHttpUrl(root)
+  const httpRoute = path ? normalizeRoutePath(path) : undefined
 
   return {
     traceId: row.traceId,
@@ -27,8 +32,9 @@ function summaryFromRebuild(row: repo.RebuildRow): TraceSummary {
     spanCount: row.spanCount,
     httpMethod: http.method,
     httpStatusCode: http.statusCode,
-    httpUrl,
+    httpUrl: extractHttpFullUrl(root),
     httpRoute: httpRoute || undefined,
+    breakdown: null,
   }
 }
 

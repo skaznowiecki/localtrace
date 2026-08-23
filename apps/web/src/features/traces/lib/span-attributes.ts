@@ -31,3 +31,12 @@ export function readAttr(attrs: JsonValue, ...keys: string[]): string | null {
   }
   return null
 }
+
+/** Text at the backend-classified payload path, if present. */
+export function payloadText(span: {
+  attributes: JsonValue
+  payloadPath: string | null
+}): string | null {
+  if (!span.payloadPath) return null
+  return readAttrPath(span.attributes, span.payloadPath)
+}

@@ -1,5 +1,5 @@
 import { Hono } from "hono"
-import type { AppEnv } from "../../app-env"
+import type { AppEnv } from "@/app-env"
 import * as list from "./services/list"
 
 export function routes(): Hono<AppEnv> {

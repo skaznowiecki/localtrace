@@ -1,5 +1,6 @@
 import { otlpJsonProvider } from "./otlp/json"
 import { otlpProtoProvider } from "./otlp/proto"
+import { sentryProvider } from "./sentry"
 import type { IngestProvider, IngestRequestContext } from "./types"
 
 /**
@@ -9,6 +10,7 @@ import type { IngestProvider, IngestRequestContext } from "./types"
  * then register it here (more specific first).
  */
 export const ingestProviders: IngestProvider[] = [
+  sentryProvider,
   otlpProtoProvider,
   otlpJsonProvider,
 ]

@@ -1,10 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { TracesTable } from "@/features/traces"
+import {
+  isTraceSortField,
+  isTraceSortOrder,
+  TracesTable,
+  type TraceSortField,
+  type TraceSortOrder,
+} from "@/features/traces"
 
 type TracesSearch = {
   trace?: string
   q?: string
+  sort?: TraceSortField
+  order?: TraceSortOrder
 }
 
 export const Route = createFileRoute("/traces")({
@@ -15,6 +23,12 @@ export const Route = createFileRoute("/traces")({
     }
     if (typeof search.q === "string" && search.q.length > 0) {
       result.q = search.q
+    }
+    if (isTraceSortField(search.sort)) {
+      result.sort = search.sort
+    }
+    if (isTraceSortOrder(search.order)) {
+      result.order = search.order
     }
     return result
   },

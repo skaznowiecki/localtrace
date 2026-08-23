@@ -4,10 +4,11 @@ import { traceFacetsQuery, type TraceFacets } from "../api/traces.api"
 
 const EMPTY_FACETS: TraceFacets = {
   services: [],
-  statuses: ["ok", "error"],
+  statuses: [],
   methods: [],
   httpStatusCodes: [],
   routes: [],
+  durations: [],
 }
 
 export function useTraceFacets() {

@@ -29,9 +29,16 @@ export function readAttrPath(attrs: Json, path: string): string | undefined {
 }
 
 export function readAttr(attrs: Json, keys: string[]): string | undefined {
+  return readAttrHit(attrs, keys)?.value
+}
+
+export function readAttrHit(
+  attrs: Json,
+  keys: string[],
+): { path: string; value: string } | undefined {
   for (const key of keys) {
     const value = readAttrPath(attrs, key)
-    if (value !== undefined) return value
+    if (value !== undefined) return { path: key, value }
   }
   return undefined
 }

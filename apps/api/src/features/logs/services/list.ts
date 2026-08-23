@@ -1,25 +1,12 @@
-import type { Db } from "../../../shared/db"
-import { nestDottedKeys, nsToRfc3339 } from "../../../shared/helpers"
-import type { LogDto, LogRecord } from "../types/log"
+import type { Db } from "@shared/db"
+import { dto } from "../helpers/dto"
 import * as repo from "../repositories/logs"
+import type { LogDto, LogListFilters } from "../types/log"
 
-function dto(log: LogRecord): LogDto {
-  return {
-    id: log.id,
-    time: nsToRfc3339(log.timeNs),
-    severity_number: log.severityNumber ?? null,
-    severity_text: log.severityText ?? null,
-    body: log.bodyAny ?? null,
-    service_name: log.serviceName || "unknown_service",
-    attributes: nestDottedKeys(log.attributes ?? {}),
-    scope_name: log.scopeName ?? null,
-    scope_version: log.scopeVersion ?? null,
-    trace_id: log.traceId ?? null,
-    span_id: log.spanId ?? null,
-  }
-}
-
-export async function execute(db: Db, traceId: string): Promise<LogDto[]> {
-  const logs = await db.run((conn) => repo.forTrace(conn, traceId))
+export async function execute(
+  db: Db,
+  filters: LogListFilters,
+): Promise<LogDto[]> {
+  const logs = await db.run((conn) => repo.list(conn, filters))
   return logs.map(dto)
 }

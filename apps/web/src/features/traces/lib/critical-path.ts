@@ -1,6 +1,6 @@
 import type { SpanTreeNode } from "../types"
 
-const NOISE_NAME = /^(middleware|prisma:|router -)/
+const NOISE_NAME = /^(middleware|router -)/
 
 function isNoise(node: SpanTreeNode): boolean {
   return NOISE_NAME.test(node.name)
@@ -16,9 +16,9 @@ function endMs(node: SpanTreeNode): number {
  * 1. Walk root → leaf picking the latest-ending non-noise child at each step
  *    (fallback to all children if every child is noise).
  * 2. For each node on that chain, also include "dominant" siblings whose
- *    duration is ≥ max(100ms, 5% of total trace duration).
+ *    duration is ≥ max(1ms, 5% of total trace duration).
  * 3. Always keep error spans (and their ancestors) so punctual failures stay
- *    visible even when Critical path filtering is on.
+ *    highlighted even when Critical path is on.
  */
 export function computeCriticalPathIds(
   roots: SpanTreeNode[],
@@ -52,7 +52,7 @@ export function computeCriticalPathIds(
     )
   }
 
-  const threshold = Math.max(100, totalDurationMs * 0.05)
+  const threshold = Math.max(1, totalDurationMs * 0.05)
 
   for (const node of chain) {
     for (const child of node.children) {

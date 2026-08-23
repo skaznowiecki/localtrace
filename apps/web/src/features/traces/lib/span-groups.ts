@@ -76,8 +76,8 @@ function makeGroupNode(members: SpanTreeNode[]): SpanGroupNode {
 }
 
 /**
- * Run-length encode consecutive siblings that share the same `name`.
- * Groups of size ≥ 2 become `SpanGroupNode`; singletons pass through.
+ * Run-length encode consecutive leaf siblings that share the same `name`.
+ * Groups of size ≥ 2 become `SpanGroupNode`; parents and singletons pass through.
  * Input must already be sorted by `startOffsetMs`.
  */
 export function groupSiblingRuns(siblings: SpanTreeNode[]): SiblingItem[] {
@@ -94,10 +94,13 @@ export function groupSiblingRuns(siblings: SpanTreeNode[]): SiblingItem[] {
     if (!atEnd && !nameChanged) continue
 
     const run = siblings.slice(runStart, index)
-    if (run.length >= 2) {
+    // Only collapse leaf runs. Grouping parents (prisma:client:operation)
+    // hides their SQL / engine children until the group is expanded.
+    const leafRun = run.every((node) => node.children.length === 0)
+    if (run.length >= 2 && leafRun) {
       result.push(makeGroupNode(run))
     } else {
-      result.push(run[0]!)
+      result.push(...run)
     }
     runStart = index
   }

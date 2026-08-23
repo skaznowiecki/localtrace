@@ -1,4 +1,4 @@
-import { loadConfig } from "../../config"
+import { loadConfig } from "@/config"
 import { migrateDb } from "./client"
 
 const config = loadConfig()

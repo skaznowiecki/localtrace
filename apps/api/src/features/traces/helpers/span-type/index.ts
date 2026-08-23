@@ -1,0 +1,5 @@
+export { classify } from "./resolve"
+export type { SpanClass, SpanTypeInput } from "./types"
+export { statementHit, dbSystem } from "./detectors/sql"
+export { REDIS_SYSTEMS } from "./detectors/redis"
+export { S3_HOST } from "./detectors/s3"

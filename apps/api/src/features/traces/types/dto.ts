@@ -1,4 +1,4 @@
-import type { Json } from "../../../shared/helpers"
+import type { Json } from "@shared/helpers"
 
 export type TraceCardDto = {
   id: string
@@ -9,21 +9,31 @@ export type TraceCardDto = {
   span_count: number
   status: string
   http_status_code?: number
+  http_method?: string
   http_url?: string
+  http_route?: string
   start_time: string
+  breakdown: BreakdownDto[] | null
 }
 
-export type RouteFacetDto = {
+export type BreakdownDto = {
+  name: string
+  duration_ms: number
+  share: number
+}
+
+export type FacetValueDto = {
   value: string
   count: number
 }
 
 export type TraceFacetsDto = {
-  services: string[]
-  statuses: string[]
-  methods: string[]
-  http_status_codes: number[]
-  routes: RouteFacetDto[]
+  services: FacetValueDto[]
+  statuses: FacetValueDto[]
+  methods: FacetValueDto[]
+  http_status_codes: FacetValueDto[]
+  routes: FacetValueDto[]
+  durations: FacetValueDto[]
 }
 
 export type SpanDto = {
@@ -42,9 +52,24 @@ export type SpanDto = {
   resource_attributes: Json
   scope_name: string | null
   scope_version: string | null
+  type?: string
+  payload_path?: string
 }
 
 export type TraceDetailDto = {
   trace: TraceCardDto
   spans: SpanDto[]
+}
+
+export type SqlQueryDto = {
+  span_id: string
+  name: string
+  statement: string
+  duration_ms: number
+  start_offset_ms: number
+  started_at: string | null
+  db_system: string | null
+  host: string | null
+  status: string
+  share: number
 }

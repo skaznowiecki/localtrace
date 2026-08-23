@@ -1,4 +1,4 @@
-import { parseLevel, type LogLevel } from "./shared/helpers/logger"
+import { parseLevel, type LogLevel } from "@shared/helpers"
 
 export type Config = {
   databasePath: string

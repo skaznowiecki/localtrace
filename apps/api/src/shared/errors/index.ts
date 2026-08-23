@@ -23,3 +23,12 @@ export class NotFoundError extends AppError {
     this.name = "NotFoundError"
   }
 }
+
+export function onInvalid(
+  result:
+    | { success: true }
+    | { success: false; error: { issues: { message?: string }[] } },
+): void {
+  if (result.success) return
+  throw new BadRequestError(result.error.issues[0]?.message ?? "invalid request")
+}

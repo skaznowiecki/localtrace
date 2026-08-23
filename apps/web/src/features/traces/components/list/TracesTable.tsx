@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router"
-import { AlertCircleIcon, ArrowDownIcon, PanelLeftIcon } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { AlertCircleIcon, PanelLeftIcon } from "lucide-react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,9 +15,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 import { useTraceFacets } from "../../hooks/useTraceFacets"
 import { useTraceFilters } from "../../hooks/useTraceFilters"
+import { useTraceSort } from "../../hooks/useTraceSort"
 import { useTraceTimeRange } from "../../hooks/useTraceTimeRange"
 import { useTraces } from "../../hooks/useTraces"
 import { TraceDrawer } from "../detail/TraceDrawer"
+import { SortableHead } from "./SortableHead"
 import { TraceFacetPanel } from "./TraceFacetPanel"
 import { TraceFilterBar } from "./TraceFilterBar"
 import { TraceTableRow } from "./TraceTableRow"
@@ -50,13 +52,13 @@ function LoadingRows() {
             <Skeleton className="h-3 w-40 rounded-md" />
           </TableCell>
           <TableCell className="px-3 py-2">
-            <Skeleton className="ml-auto h-3 w-12 rounded-md" />
+            <Skeleton className="mx-auto h-3 w-12 rounded-md" />
           </TableCell>
           <TableCell className="px-3 py-2">
-            <Skeleton className="ml-auto h-3 w-8 rounded-md" />
+            <Skeleton className="mx-auto h-3 w-8 rounded-md" />
           </TableCell>
           <TableCell className="px-3 py-2">
-            <Skeleton className="h-5 w-12 rounded-md" />
+            <Skeleton className="mx-auto h-5 w-12 rounded-md" />
           </TableCell>
           <TableCell className="px-3 py-2">
             <Skeleton className="h-3 w-full max-w-[220px] rounded-md" />
@@ -69,6 +71,7 @@ function LoadingRows() {
 
 export function TracesTable() {
   const { query, filters, setQuery, setFilter } = useTraceFilters()
+  const { sort, order, setSort } = useTraceSort()
   const { facets, isLoading: facetsLoading } = useTraceFacets()
   const { live, lookbackMs, pausedSince } = useTraceTimeRange()
   const [facetsOpen, setFacetsOpen] = useState(readFacetsOpen)
@@ -83,6 +86,8 @@ export function TracesTable() {
 
   const listFilters = {
     ...filters,
+    sort,
+    order,
     // Absolute since only when paused; LIVE slides in queryFn via lookbackMs.
     since: live ? undefined : pausedSince,
   }
@@ -100,11 +105,6 @@ export function TracesTable() {
       replace: false,
     })
   }
-
-  const maxDurationMs = useMemo(
-    () => traces.reduce((max, trace) => Math.max(max, trace.durationMs), 0),
-    [traces],
-  )
 
   return (
     <div className="flex h-full min-h-0 bg-background">
@@ -154,27 +154,51 @@ export function TracesTable() {
             <Table className="text-xs">
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-9 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    <span className="inline-flex items-center gap-1">
-                      Date
-                      <ArrowDownIcon className="size-3" />
-                    </span>
-                  </TableHead>
-                  <TableHead className="h-9 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    Root Service
-                  </TableHead>
-                  <TableHead className="h-9 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    Name
-                  </TableHead>
-                  <TableHead className="h-9 px-3 text-right text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    Duration
-                  </TableHead>
-                  <TableHead className="h-9 px-3 text-right text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    Spans
-                  </TableHead>
-                  <TableHead className="h-9 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    Status
-                  </TableHead>
+                  <SortableHead
+                    column="date"
+                    label="Date"
+                    sort={sort}
+                    order={order}
+                    onSort={setSort}
+                  />
+                  <SortableHead
+                    column="root_service"
+                    label="Root Service"
+                    sort={sort}
+                    order={order}
+                    onSort={setSort}
+                  />
+                  <SortableHead
+                    column="name"
+                    label="Name"
+                    sort={sort}
+                    order={order}
+                    onSort={setSort}
+                  />
+                  <SortableHead
+                    column="duration"
+                    label="Duration"
+                    sort={sort}
+                    order={order}
+                    onSort={setSort}
+                    align="center"
+                  />
+                  <SortableHead
+                    column="spans"
+                    label="Spans"
+                    sort={sort}
+                    order={order}
+                    onSort={setSort}
+                    align="center"
+                  />
+                  <SortableHead
+                    column="status"
+                    label="Status"
+                    sort={sort}
+                    order={order}
+                    onSort={setSort}
+                    align="center"
+                  />
                   <TableHead className="h-9 px-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                     Timeline
                   </TableHead>
@@ -199,7 +223,6 @@ export function TracesTable() {
                     <TraceTableRow
                       key={trace.id}
                       trace={trace}
-                      maxDurationMs={maxDurationMs}
                       isSelected={selectedTraceId === trace.id}
                       onSelect={selectTrace}
                     />

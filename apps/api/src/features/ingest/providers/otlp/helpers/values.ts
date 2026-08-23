@@ -1,4 +1,4 @@
-import { nestDottedKeys, type Json } from "../../../../../shared/helpers"
+import { nestDottedKeys, type Json } from "@shared/helpers"
 
 const JSON_SAFE_INT_MAX = 9_007_199_254_740_991n
 

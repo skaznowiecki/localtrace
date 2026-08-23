@@ -1,5 +1,5 @@
-import type { DbConn } from "../../../shared/db"
-import { toNumber } from "../../../shared/helpers"
+import type { DbConn } from "@shared/db"
+import { toNumber } from "@shared/helpers"
 import type { ServiceCard } from "../types/service"
 
 export async function list(

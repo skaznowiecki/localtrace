@@ -5,12 +5,19 @@ import type {
   TraceDetail,
   TraceListItem,
   TraceLog,
+  TraceSqlQuery,
   TraceStatus,
 } from "../types"
 import {
   filtersToSearchParams,
   type TraceQueryFilters,
 } from "../lib/trace-filter"
+
+type ApiBreakdownDto = {
+  name: string
+  duration_ms: number
+  share: number
+}
 
 type ApiTraceCard = {
   id: string
@@ -20,11 +27,12 @@ type ApiTraceCard = {
   duration_ms: number
   span_count: number
   status: string
-  /** Present when the API denormalizes root-span HTTP status onto the card. */
   http_status_code?: number | string | null
-  /** Root-span request path, denormalized so method-only names (OPTIONS) show it. */
+  http_method?: string | null
   http_url?: string | null
+  http_route?: string | null
   start_time: string
+  breakdown?: ApiBreakdownDto[] | null
 }
 
 type ApiSpanDto = {
@@ -43,6 +51,8 @@ type ApiSpanDto = {
   resource_attributes: JsonValue
   scope_name: string | null
   scope_version: string | null
+  type?: string | null
+  payload_path?: string | null
 }
 
 type ApiTraceDetail = {
@@ -64,30 +74,45 @@ type ApiLogDto = {
   span_id: string | null
 }
 
-type ApiRouteFacet = {
+type ApiSqlQueryDto = {
+  span_id: string
+  name: string
+  statement: string
+  duration_ms: number
+  start_offset_ms: number
+  started_at: string | null
+  db_system: string | null
+  host: string | null
+  status: string
+  share: number
+}
+
+type ApiFacetValue = {
   value: string
   count: number
 }
 
 type ApiTraceFacets = {
-  services: string[]
-  statuses: string[]
-  methods: string[]
-  http_status_codes: number[]
-  routes: ApiRouteFacet[]
+  services: ApiFacetValue[]
+  statuses: ApiFacetValue[]
+  methods: ApiFacetValue[]
+  http_status_codes: ApiFacetValue[]
+  routes: ApiFacetValue[]
+  durations: ApiFacetValue[]
 }
 
-export type RouteFacet = {
+export type FacetValue = {
   value: string
   count: number
 }
 
 export type TraceFacets = {
-  services: string[]
-  statuses: string[]
-  methods: string[]
-  httpStatusCodes: number[]
-  routes: RouteFacet[]
+  services: FacetValue[]
+  statuses: FacetValue[]
+  methods: FacetValue[]
+  httpStatusCodes: FacetValue[]
+  routes: FacetValue[]
+  durations: FacetValue[]
 }
 
 function toTraceStatus(status: string): TraceStatus {
@@ -111,9 +136,25 @@ function mapTraceCard(trace: ApiTraceCard): TraceListItem {
     spanCount: trace.span_count,
     status: toTraceStatus(trace.status),
     httpStatusCode,
+    httpMethod:
+      trace.http_method == null || trace.http_method === ""
+        ? null
+        : trace.http_method,
     httpUrl:
       trace.http_url == null || trace.http_url === "" ? null : trace.http_url,
+    httpRoute:
+      trace.http_route == null || trace.http_route === ""
+        ? null
+        : trace.http_route,
     startTime: trace.start_time,
+    breakdown:
+      trace.breakdown == null
+        ? null
+        : trace.breakdown.map((item) => ({
+            name: item.name,
+            durationMs: item.duration_ms,
+            share: item.share,
+          })),
   }
 }
 
@@ -134,6 +175,8 @@ function mapSpan(span: ApiSpanDto) {
     resourceAttributes: span.resource_attributes ?? {},
     scopeName: span.scope_name,
     scopeVersion: span.scope_version,
+    type: span.type || null,
+    payloadPath: span.payload_path || null,
   }
 }
 
@@ -150,6 +193,21 @@ function mapLog(log: ApiLogDto): TraceLog {
     scopeVersion: log.scope_version,
     traceId: log.trace_id,
     spanId: log.span_id,
+  }
+}
+
+function mapSqlQuery(query: ApiSqlQueryDto): TraceSqlQuery {
+  return {
+    spanId: query.span_id,
+    name: query.name,
+    statement: query.statement,
+    durationMs: query.duration_ms,
+    startOffsetMs: query.start_offset_ms,
+    startedAt: query.started_at,
+    dbSystem: query.db_system,
+    host: query.host,
+    status: toTraceStatus(query.status),
+    share: query.share,
   }
 }
 
@@ -183,10 +241,11 @@ export async function fetchTraceFacets(): Promise<TraceFacets> {
   const facets = await parseJson<ApiTraceFacets>(response)
   return {
     services: facets.services ?? [],
-    statuses: facets.statuses?.length ? facets.statuses : ["ok", "error"],
+    statuses: facets.statuses ?? [],
     methods: facets.methods ?? [],
     httpStatusCodes: facets.http_status_codes ?? [],
     routes: facets.routes ?? [],
+    durations: facets.durations ?? [],
   }
 }
 
@@ -206,9 +265,17 @@ export async function fetchTraceLogs(traceId: string): Promise<TraceLog[]> {
   return logs.map(mapLog)
 }
 
+export async function fetchTraceSql(traceId: string): Promise<TraceSqlQuery[]> {
+  const response = await fetch(
+    `/api/traces/${encodeURIComponent(traceId)}/sql`,
+  )
+  const queries = await parseJson<ApiSqlQueryDto[]>(response)
+  return queries.map(mapSqlQuery)
+}
+
 /**
  * Query-key factory — the single source of truth for cache keys. Keeping keys
- * hierarchical (`traces` → `list`/`detail`/`logs`) makes partial invalidation
+ * hierarchical (`traces` → `list`/`detail`/`logs`/`sql`) makes partial invalidation
  * easy (e.g. `queryClient.invalidateQueries({ queryKey: traceKeys.all })`).
  */
 export type TraceListLiveOptions = {
@@ -239,6 +306,7 @@ export const traceKeys = {
   details: () => [...traceKeys.all, "detail"] as const,
   detail: (traceId: string) => [...traceKeys.details(), traceId] as const,
   logs: (traceId: string) => [...traceKeys.all, "logs", traceId] as const,
+  sql: (traceId: string) => [...traceKeys.all, "sql", traceId] as const,
 }
 
 export function traceListQuery(
@@ -288,6 +356,15 @@ export function traceLogsQuery(traceId: string | null) {
   return queryOptions({
     queryKey: traceKeys.logs(traceId ?? "__none__"),
     queryFn: () => fetchTraceLogs(traceId!),
+    enabled: traceId != null,
+    staleTime: 60_000,
+  })
+}
+
+export function traceSqlQuery(traceId: string | null) {
+  return queryOptions({
+    queryKey: traceKeys.sql(traceId ?? "__none__"),
+    queryFn: () => fetchTraceSql(traceId!),
     enabled: traceId != null,
     staleTime: 60_000,
   })
