@@ -1,14 +1,153 @@
 # Local Tracer
 
-> Chrome DevTools for distributed systems. Open Source. Local First. Docker First.
+**Observability for coding agents.** Local-first. Agent-first. Native connectors.
 
-## Week 1 Goal
+An agent that writes code without seeing the running system is guessing. It can read the source, run tests, and grep logs — but it cannot see *what actually happened*: which SQL was slow, which HTTP call returned 500, which Redis key missed, which span failed.
+
+Local Tracer exists to close that gap.
+
+> **The goal is not another dashboard.**  
+> The goal is **visibility for the agent** — so it can test, debug, and develop against the real behavior of the system, not only against the code it wrote.
 
 ```
-just dev → SQLite → GET /api/traces → React
+your app  ──OTLP / Sentry / Datadog──►  Local Tracer  ──MCP──►  the agent
+                                              │
+                                              └── UI (optional, for you)
 ```
 
-## Quick Start
+## Why agent-first
+
+Every surface in this project is built so a coding agent can *use* it, not just so a human can look at it.
+
+| Surface | Who it is for | Role |
+| --- | --- | --- |
+| **MCP** (`/mcp`) | The agent | Primary interface. Query traces, SQL, logs, services. Investigate a failure. |
+| **Native ingest** | Your existing SDKs | Zero new instrumentation. Point OTLP, Sentry, or `dd-trace` at localhost. |
+| **HTTP API** | Agent + UI | Same services as MCP. Deterministic, filterable, local. |
+| **UI** | You | Companion view. The agent does not need it. |
+
+The UI is a human overlay on the same data. MCP is the product.
+
+That means:
+
+- Tools, resources, and prompts are first-class — not an afterthought bolted onto a REST API.
+- Tool descriptions tell the agent *how to investigate*, not just what a field is called.
+- Ingest speaks the protocols agents and apps already emit. No custom SDK, no vendor lock-in, no cloud account.
+- Storage is a local SQLite file. Disposable. Inspectable. The agent can read it.
+
+## What it does
+
+Local Tracer is a **local APM** that sits on your machine, accepts telemetry from your app, and exposes it to coding agents over [MCP](https://modelcontextprotocol.io).
+
+1. **Ingest** — your app already talks OpenTelemetry, Sentry, or Datadog. Point those SDKs at `127.0.0.1:4318`.
+2. **Store** — traces, logs, and metrics land in SQLite. No cluster. No account.
+3. **See** — the agent lists traces, opens a span tree, pulls the slowest SQL, and reads correlated logs. You can do the same in the UI if you want.
+
+Use it while an agent is building a feature, writing a migration, or chasing a bug: run the app, hit the path, ask the agent what happened.
+
+## Native connectors
+
+You do not add a Local Tracer SDK. You do not rewrite instrumentation.
+
+The API **is** an OTLP collector, a Sentry ingest, and a Datadog Agent — on one port.
+
+| Connector | What you point at Local Tracer | What is ingested |
+| --- | --- | --- |
+| **OpenTelemetry** | `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` | Traces, logs, metrics (`POST /v1/traces\|logs\|metrics`, JSON or protobuf, gzip optional) |
+| **Sentry** | `SENTRY_DSN=http://local@127.0.0.1:4318/1` | Transactions + spans → traces; error/message events → logs (correlated by `trace_id` when present) |
+| **Datadog** | `DD_TRACE_AGENT_URL=http://127.0.0.1:4318` | `dd-trace` / `ddtrace` traces (JSON or msgpack), HTTP logs, HTTP metrics |
+
+No extra process. No UDP DogStatsD. No cloud forwarder. The same Bun server answers all three.
+
+### OpenTelemetry
+
+Any OTLP HTTP exporter. JSON and protobuf.
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+```
+
+### Sentry
+
+Point any Sentry SDK at Local Tracer. Public key and project id are ignored (`1` is the documented default — SDKs typically require a numeric project id).
+
+```js
+Sentry.init({ dsn: "http://local@127.0.0.1:4318/1" })
+```
+
+```bash
+export SENTRY_DSN=http://local@127.0.0.1:4318/1
+```
+
+The API logs this DSN on startup. SDKs POST envelopes to `/api/1/envelope/`.
+
+Ingested: `transaction` and `span` items → traces; `event` items (errors / messages) → logs.  
+Discarded: sessions, attachments, profiles, replays, metrics, check-ins, and other envelope item types.
+
+### Datadog Agent
+
+Point `dd-trace` / `ddtrace` at this process (same port as OTLP). No extra 8126 listener.
+
+```bash
+export DD_TRACE_AGENT_URL=http://127.0.0.1:4318
+# aliases:
+# DD_AGENT_HOST=127.0.0.1  DD_TRACE_AGENT_PORT=4318
+```
+
+The API logs this URL on startup. Implemented:
+
+- `GET /info` — discovery (`/v0.3`–`/v0.7/traces`; `/v1.0/traces` is not advertised)
+- `PUT`/`POST` `/v0.3/traces` (empty 200) and `/v0.4` `/v0.5` `/v0.7/traces` (JSON or msgpack; sampling `rate_by_service`)
+- `POST` `/v1/input`, `/v1/input/:apiKey`, `/api/v2/logs` — HTTP logs
+- `POST` `/api/v1/series`, `/api/v2/series` — HTTP metrics
+- Stubs `200`: `/v0.4/services`, `/v0.6/stats`, `/v0.7/config`, telemetry proxy
+
+DogStatsD UDP 8125 is out of scope.
+
+## MCP — the agent interface
+
+With the API running, agents talk **Streamable HTTP** at [http://127.0.0.1:4318/mcp](http://127.0.0.1:4318/mcp).
+
+This repo wires Cursor via [`.cursor/mcp.json`](.cursor/mcp.json). Tools call the **same services** as `GET /api/traces`, `/api/traces/:id`, `/sql`, `/logs`, `/api/services`, and `/facets`. There is no second data path.
+
+```bash
+npx @modelcontextprotocol/inspector http://127.0.0.1:4318/mcp
+```
+
+### Tools
+
+| Tool | What the agent gets |
+| --- | --- |
+| `list_facets` | Valid filter values (services, statuses, HTTP methods, routes, duration buckets) |
+| `list_traces` | Recent traces, with exclusive-time breakdown (Prisma / HTTP / Redis / SQL / App) |
+| `get_trace` | Full span tree, attributes, events, resource attributes |
+| `get_trace_sql` | DB queries in a trace, sorted by duration |
+| `get_trace_logs` | Logs correlated to a `trace_id` |
+| `list_log_facets` | Services and severity buckets for log filters |
+| `list_logs` | Recent logs |
+| `list_services` | Services that have ingested traces |
+
+Prompt: `investigate_trace` — walk one trace (overview → slow SQL → correlated logs → errors).
+
+`local-tracer-db` is an optional stdio SQLite MCP on `./data/local-tracer.db` for raw queries.
+
+### Example loop
+
+```
+agent writes a handler
+    → you (or the agent) hit the endpoint
+    → telemetry lands in Local Tracer
+    → agent calls list_traces / get_trace / get_trace_sql
+    → agent sees the slow query, the 500, the missing span
+    → agent fixes the code
+    → repeat
+```
+
+That loop is the product.
+
+## Quick start
+
+Requires [pnpm](https://pnpm.io), [Bun](https://bun.sh), [Node](https://nodejs.org), and [Just](https://github.com/casey/just).
 
 ```bash
 pnpm install
@@ -16,7 +155,15 @@ just migrate
 just dev
 ```
 
-Open [http://localhost:4371](http://localhost:4371).
+- UI: [http://localhost:4371](http://localhost:4371)
+- API + ingest + MCP: [http://127.0.0.1:4318](http://127.0.0.1:4318)
+- MCP: [http://127.0.0.1:4318/mcp](http://127.0.0.1:4318/mcp)
+
+Or with Docker:
+
+```bash
+docker compose up
+```
 
 ### What `just dev` does
 
@@ -35,77 +182,33 @@ Wipe the local DB and recreate schema (data is discarded):
 just migrate
 ```
 
-Or with Docker:
-
-```bash
-docker compose up
-```
-
-## Architecture (Week 1)
+## Architecture
 
 ```
-React → Bun API (Hono) → SQLite
-         ↑ OTLP /v1/traces|logs|metrics
-         ↑ Sentry POST /api/:projectId/envelope
-         ↑ Datadog Agent HTTP /info /v0.x/traces /v1/input /api/v2/logs /api/v1/series
+app SDKs
+  OTLP  /v1/traces | /v1/logs | /v1/metrics
+  Sentry  POST /api/:projectId/envelope
+  Datadog  /info  /v0.x/traces  /v1/input  /api/v2/logs  /api/v1/series
+       │
+       ▼
+Bun + Hono API  ──►  SQLite (local)
+       │
+       ├── MCP  /mcp          ← the agent
+       ├── HTTP /api/traces   ← the agent + the UI
+       └── UI   :4371         ← you
 ```
 
-## Sentry DSN
-
-Point any Sentry SDK at local-tracer. Public key and project id are ignored (`1` is the documented default — SDKs typically require a numeric project id):
-
-```js
-Sentry.init({ dsn: "http://local@127.0.0.1:4318/1" })
-```
-
-```bash
-export SENTRY_DSN=http://local@127.0.0.1:4318/1
-```
-
-The API logs this DSN on startup. SDKs POST envelopes to `/api/1/envelope/`.
-
-Ingested:
-
-- `transaction` and `span` items → traces
-- `event` items (errors / messages) → logs (correlated by `trace_id` when present)
-
-Discarded: sessions, attachments, profiles, replays, metrics, check-ins, and other envelope item types.
-
-## Datadog Agent
-
-Point `dd-trace` / `ddtrace` at this process (same port as OTLP, default `4318`). No extra 8126 listener.
-
-```bash
-export DD_TRACE_AGENT_URL=http://127.0.0.1:4318
-# aliases:
-# DD_AGENT_HOST=127.0.0.1  DD_TRACE_AGENT_PORT=4318
-```
-
-The API logs this URL on startup. Implemented:
-
-- `GET /info` — discovery (`/v0.3`–`/v0.7/traces` only; `/v1.0/traces` is not advertised)
-- `PUT`/`POST` `/v0.3/traces` (empty 200) and `/v0.4` `/v0.5` `/v0.7/traces` (JSON or msgpack; sampling `rate_by_service`)
-- `POST` `/v1/input`, `/v1/input/:apiKey`, `/api/v2/logs` — HTTP logs
-- `POST` `/api/v1/series`, `/api/v2/series` — HTTP metrics
-- Stubs `200`: `/v0.4/services`, `/v0.6/stats`, `/v0.7/config`, telemetry proxy
-
-DogStatsD UDP 8125 is out of scope.
-
-## MCP (agents)
-
-With the API running (`just dev`), agents talk to Streamable HTTP at [http://127.0.0.1:4318/mcp](http://127.0.0.1:4318/mcp).
-
-This repo wires Cursor via [`.cursor/mcp.json`](.cursor/mcp.json). Tools call the same services as `GET /api/traces`, `/api/traces/:id`, `/sql`, `/logs`, `/api/services`, and `/facets`. `local-tracer-db` is a stdio SQLite MCP on `./data/local-tracer.db`.
-
-```bash
-npx @modelcontextprotocol/inspector http://127.0.0.1:4318/mcp
-```
+Local-first: one process, one file, no vendor cloud. Data is disposable — `just migrate` wipes and recreates.
 
 ## Environment
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LT_DATABASE_PATH` | `./data/local-tracer.db` | SQLite file path |
-| `LT_API_PORT` | `4318` | API + OTLP HTTP server port |
+| `LT_API_PORT` | `4318` | API + ingest + MCP port |
 | `LT_OTLP_MAX_BODY_BYTES` | `16777216` | Max decompressed ingest body (OTLP, Sentry, Datadog) |
 | `LT_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` \| `silent` |
+
+## Status
+
+Early and local-only. Schema and APIs change without migration paths — wipe and re-ingest. That is intentional: this is a development instrument for agents, not a production APM.
