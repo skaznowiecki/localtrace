@@ -1,5 +1,5 @@
-import type { Overlay } from "../types"
-import { asAttrMap, asString, copyIfMissing } from "../attrs"
+import type { Overlay } from "../overlay-attrs"
+import { asAttrMap, asString, copyIfMissing } from "../overlay-attrs"
 
 const EXPRESS_OPS = [
   "middleware.express",

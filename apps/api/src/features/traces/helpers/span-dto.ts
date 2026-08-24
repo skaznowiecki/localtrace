@@ -1,4 +1,5 @@
-import { nestDottedKeys, overlayAttributes, truncateJson } from "@shared/helpers"
+import { nestDottedKeys, truncateJson } from "@shared/helpers"
+import { overlayAttributes } from "@features/ingest/providers/overlay"
 import { classify } from "./span-type"
 import type { SpanDto, SpanOverviewDto } from "../types/dto"
 import type { SpanRecord } from "../types/span"

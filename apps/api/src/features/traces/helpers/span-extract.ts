@@ -1,8 +1,5 @@
-import {
-  nsToRfc3339,
-  overlayAttributes,
-  readAttr,
-} from "@shared/helpers"
+import { nsToRfc3339, readAttr } from "@shared/helpers"
+import { overlayAttributes } from "@features/ingest/providers/overlay"
 import { peerHost, urlHit } from "./span-type/host"
 import {
   classify,

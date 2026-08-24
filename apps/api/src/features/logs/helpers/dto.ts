@@ -1,4 +1,5 @@
-import { nestDottedKeys, nsToRfc3339, overlayAttributes } from "@shared/helpers"
+import { nestDottedKeys, nsToRfc3339 } from "@shared/helpers"
+import { overlayAttributes } from "@features/ingest/providers/overlay"
 import type { LogDto, LogRecord } from "../types/log"
 
 export function dto(log: LogRecord, raw = false): LogDto {

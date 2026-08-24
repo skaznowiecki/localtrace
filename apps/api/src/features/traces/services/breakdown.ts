@@ -1,5 +1,5 @@
 import type { Db } from "@shared/db"
-import { overlayAttributes } from "@shared/helpers"
+import { overlayAttributes } from "@features/ingest/providers/overlay"
 import { aggregate, serialize, type SpanLite } from "../helpers/breakdown"
 import * as repo from "../repositories/traces"
 

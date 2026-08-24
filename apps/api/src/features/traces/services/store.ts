@@ -1,5 +1,6 @@
 import type { Db } from "@shared/db"
-import { normalizeRoutePath, overlayAttributes } from "@shared/helpers"
+import { normalizeRoutePath } from "@shared/helpers"
+import { overlayAttributes } from "@features/ingest/providers/overlay"
 import type { SpanRecord, TraceSummary } from "../types/span"
 import * as repo from "../repositories/traces"
 import {

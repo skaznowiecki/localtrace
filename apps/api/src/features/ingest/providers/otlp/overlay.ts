@@ -1,5 +1,4 @@
-import type { Overlay } from "../types"
-import { asAttrMap } from "../attrs"
+import { asAttrMap, type Overlay } from "../overlay-attrs"
 
 export const otlpOverlay: Overlay = {
   id: "otlp",

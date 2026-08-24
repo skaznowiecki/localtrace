@@ -11,7 +11,8 @@ import type { IngestProvider, IngestRequestContext } from "./types"
  * Ingest request strategies — first match wins.
  *
  * Add a provider: implement `IngestProvider` under `providers/<name>/`,
- * then register it here (more specific first).
+ * register it here (more specific first), and add `providers/<name>/overlay.ts`
+ * (vendor attrs → OTEL) to the overlay registry.
  */
 export const ingestProviders: IngestProvider[] = [
   datadogMsgpackProvider,

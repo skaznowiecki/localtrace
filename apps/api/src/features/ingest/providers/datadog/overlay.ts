@@ -1,6 +1,6 @@
-import type { Json } from "../../attrs"
-import type { Overlay } from "../types"
-import { asAttrMap, asString, copyIfMissing } from "../attrs"
+import type { Json } from "@shared/helpers"
+import type { Overlay } from "../overlay-attrs"
+import { asAttrMap, asString, copyIfMissing } from "../overlay-attrs"
 
 function copyStatement(attrs: Record<string, Json>, from: string): void {
   const value = asString(attrs[from])

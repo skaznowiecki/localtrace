@@ -11,7 +11,6 @@ export {
 } from "./attrs"
 export type { IngestProviderName } from "./ingest-provider"
 export { ingestProviderFromId, stampIngestProvider } from "./ingest-provider"
-export { overlayAttributes } from "./overlay"
 export { rawInput, rawQuery } from "./raw"
 export { log, parseLevel, setLevel } from "./logger"
 export type { LogLevel } from "./logger"

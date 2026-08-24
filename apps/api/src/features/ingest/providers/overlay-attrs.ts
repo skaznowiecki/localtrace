@@ -1,4 +1,11 @@
-import type { Json } from "../attrs"
+import type { IngestProviderName, Json } from "@shared/helpers"
+
+export type OverlayFn = (attrs: Record<string, Json>) => Record<string, Json>
+
+export type Overlay = {
+  id: IngestProviderName
+  apply: OverlayFn
+}
 
 export function asAttrMap(value: Json): Record<string, Json> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
