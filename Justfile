@@ -64,3 +64,7 @@ docker-up:
 
 docker-down:
     docker compose down
+
+# Build the production image (UI + API) for local smoke tests.
+docker-build:
+    docker build -t local-tracer:dev .

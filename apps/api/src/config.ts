@@ -1,10 +1,11 @@
-import { parseLevel, type LogLevel } from "@shared/helpers"
+import { emptyToUndef, parseLevel, type LogLevel } from "@shared/helpers"
 
 export type Config = {
   databasePath: string
   apiPort: number
   logLevel: LogLevel
   otlpMaxBodyBytes: number
+  webRoot?: string
 }
 
 function envInt(name: string, fallback: number): number {
@@ -20,5 +21,6 @@ export function loadConfig(): Config {
     apiPort: envInt("LT_API_PORT", 4318),
     logLevel: parseLevel(process.env.LT_LOG_LEVEL),
     otlpMaxBodyBytes: envInt("LT_OTLP_MAX_BODY_BYTES", 16 * 1024 * 1024),
+    webRoot: emptyToUndef(process.env.LT_WEB_ROOT),
   }
 }

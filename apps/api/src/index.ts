@@ -33,6 +33,7 @@ if (fresh) {
   log(`starting local-tracer api on 0.0.0.0:${config.apiPort}`)
   log(`sentry dsn http://local@127.0.0.1:${config.apiPort}/1`)
   log(`datadog DD_TRACE_AGENT_URL=http://127.0.0.1:${config.apiPort}`)
+  if (config.webRoot) log(`serving ui from ${config.webRoot}`)
 }
 
 if (!hot.poller || hot.poller.kind !== "sleep") {

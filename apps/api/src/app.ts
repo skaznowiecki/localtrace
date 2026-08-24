@@ -16,6 +16,7 @@ import {
 import { listRoutes as logsList, routes as logs } from "@features/logs"
 import { routes as mcp } from "@features/mcp"
 import { routes as traces } from "@features/traces"
+import { mountWeb } from "./web"
 
 export function createApp(deps: {
   db: Db
@@ -63,6 +64,10 @@ export function createApp(deps: {
   app.route("/api/services", catalog())
   app.route("/api", ingestEnvelope(deps.config.otlpMaxBodyBytes))
   app.route("/v1", ingest(deps.config.otlpMaxBodyBytes))
+
+  if (deps.config.webRoot) {
+    mountWeb(app, deps.config.webRoot)
+  }
 
   return app
 }

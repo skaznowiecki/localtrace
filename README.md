@@ -108,28 +108,39 @@ DogStatsD UDP 8125 is out of scope.
 
 With the API running, agents talk **Streamable HTTP** at [http://127.0.0.1:4318/mcp](http://127.0.0.1:4318/mcp).
 
-This repo wires Cursor via [`.cursor/mcp.json`](.cursor/mcp.json). Tools call the **same services** as `GET /api/traces`, `/api/traces/:id`, `/sql`, `/logs`, `/api/services`, and `/facets`. There is no second data path.
+This repo wires Cursor via [`.cursor/mcp.json`](.cursor/mcp.json). The server is **agent-first**: compact payloads, `since_minutes`, and a playbook in server `instructions`. Tools still call the same `execute` services as HTTP. Do **not** attach a raw SQLite MCP.
 
 ```bash
 npx @modelcontextprotocol/inspector http://127.0.0.1:4318/mcp
 ```
 
+### Playbook
+
+1. `list_facets` / `list_log_facets` / `list_metric_facets` before inventing filter values.
+2. Prefer `since_minutes` (e.g. `15`) over RFC3339 `since`.
+3. `list_traces` returns compact cards with `total` / `next_offset`. Do **not** call `get_trace` in a loop over the list.
+4. `get_trace` defaults to **overview** (tree without attributes). Use `get_span` for attributes, `get_trace_spans` / `get_trace_sql` for typed payloads, `get_trace_logs` for logs.
+5. If `breakdown` is `null`, retry `get_trace` shortly (still processing).
+
 ### Tools
 
 | Tool | What the agent gets |
 | --- | --- |
-| `list_facets` | Valid filter values (services, statuses, HTTP methods, routes, duration buckets) |
-| `list_traces` | Recent traces, with exclusive-time breakdown (Prisma / HTTP / Redis / SQL / App) |
-| `get_trace` | Full span tree, attributes, events, resource attributes |
+| `list_facets` | Valid trace filter values |
+| `list_traces` | Recent traces (paginated). Prefer `since_minutes` |
+| `get_trace` | Overview (default) or `detail=full` |
+| `get_span` | One span with attributes |
 | `get_trace_sql` | DB queries in a trace, sorted by duration |
+| `get_trace_spans` | Typed payloads: `sql` / `redis` / `mongo` / `prisma` / `http` / `express` / `s3` / `openrouter` / `error` |
+| `search_spans` | Cross-trace search (name/attributes, type, service) |
 | `get_trace_logs` | Logs correlated to a `trace_id` |
 | `list_log_facets` | Services and severity buckets for log filters |
-| `list_logs` | Recent logs |
+| `list_logs` | Recent logs (attributes omitted unless `raw`) |
 | `list_services` | Services that have ingested traces |
+| `list_metric_facets` | Metric names and services |
+| `query_metrics` | Recent metric points |
 
-Prompt: `investigate_trace` — walk one trace (overview → slow SQL → correlated logs → errors).
-
-`local-tracer-db` is an optional stdio SQLite MCP on `./data/local-tracer.db` for raw queries.
+Prompts: `investigate_trace`, `debug_errors`, `find_slow`.
 
 ### Example loop
 
@@ -147,6 +158,20 @@ That loop is the product.
 
 ## Quick start
 
+### Docker (recommended)
+
+```bash
+docker run --rm -p 4318:4318 \
+  -v local-tracer-data:/app/data \
+  ghcr.io/skaznowiecki/local-tracer:latest
+```
+
+Open [http://localhost:4318](http://localhost:4318). UI, ingest (OTLP / Sentry / Datadog), and MCP all share port `4318`. Data lives in the `local-tracer-data` volume.
+
+The image is published to GHCR on `v*` tags. After the first release, set the package visibility to **public** under GitHub → Packages.
+
+### Development
+
 Requires [pnpm](https://pnpm.io), [Bun](https://bun.sh), [Node](https://nodejs.org), and [Just](https://github.com/casey/just).
 
 ```bash
@@ -157,12 +182,10 @@ just dev
 
 - UI: [http://localhost:4371](http://localhost:4371)
 - API + ingest + MCP: [http://127.0.0.1:4318](http://127.0.0.1:4318)
-- MCP: [http://127.0.0.1:4318/mcp](http://127.0.0.1:4318/mcp)
-
-Or with Docker:
 
 ```bash
-docker compose up
+just docker-build   # production image, locally tagged local-tracer:dev
+docker compose up   # two-container HMR stack
 ```
 
 ### What `just dev` does
@@ -208,6 +231,7 @@ Local-first: one process, one file, no vendor cloud. Data is disposable — `jus
 | `LT_API_PORT` | `4318` | API + ingest + MCP port |
 | `LT_OTLP_MAX_BODY_BYTES` | `16777216` | Max decompressed ingest body (OTLP, Sentry, Datadog) |
 | `LT_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` \| `silent` |
+| `LT_WEB_ROOT` | unset | Directory of the built UI. Set in the production image so the API serves the SPA. |
 
 ## Status
 
