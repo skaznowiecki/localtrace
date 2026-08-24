@@ -71,6 +71,19 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
       - uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
@@ -104,4 +117,4 @@ jobs:
 
       - uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          body_path: CHANGES.md
