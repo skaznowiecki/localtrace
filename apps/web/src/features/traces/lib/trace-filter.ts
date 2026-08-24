@@ -92,6 +92,14 @@ export type TraceQueryFilters = {
   sort?: TraceSortField
   /** List sort direction. Not part of `?q=`. */
   order?: TraceSortOrder
+  /** `@path:value` / `-@path:value` span/resource attribute filters. */
+  attrs?: AttrFilter[]
+}
+
+export type AttrFilter = {
+  key: string
+  value: string
+  exclude: boolean
 }
 
 export type DurationToken =
@@ -252,10 +260,85 @@ function parseKeyValue(raw: string): { key: string | null; value: string } {
   }
 }
 
+export function parseAttrToken(raw: string): AttrFilter | null {
+  const token = raw.trim()
+  let body = token
+  let exclude = false
+  if (body.startsWith("-@")) {
+    exclude = true
+    body = body.slice(1)
+  }
+  if (!body.startsWith("@")) return null
+  const { key, value } = parseKeyValue(body.slice(1))
+  if (!key || !value) return null
+  if (!/^[A-Za-z0-9_.-]+$/.test(key)) return null
+  return { key, value, exclude }
+}
+
+export function formatAttrToken(
+  path: string,
+  value: string,
+  exclude = false,
+): string {
+  const token = `@${path}:${quoteIfNeeded(value)}`
+  return exclude ? `-${token}` : token
+}
+
+/** Last token of an in-progress draft; trailing whitespace starts a new token. */
+export function splitDraftLastToken(draft: string): {
+  prefix: string
+  token: string
+} {
+  if (draft.length === 0 || /\s$/.test(draft)) {
+    return { prefix: draft, token: "" }
+  }
+  const tokens = splitQueryTokens(draft)
+  const token = tokens[tokens.length - 1] ?? ""
+  const at = draft.lastIndexOf(token)
+  return {
+    prefix: at >= 0 ? draft.slice(0, at) : draft,
+    token,
+  }
+}
+
+export function replaceDraftLastToken(draft: string, next: string): string {
+  const { prefix } = splitDraftLastToken(draft)
+  return `${prefix}${next}`
+}
+
+/**
+ * Set or replace a `@path:value` token. Same path last-wins (include and
+ * exclude are mutually exclusive). `value: null` clears that path.
+ */
+export function setAttrInQuery(
+  query: string,
+  path: string,
+  value: string | null,
+  options?: { exclude?: boolean },
+): string {
+  const kept: string[] = []
+  for (const token of splitTokens(query)) {
+    const attr = parseAttrToken(token.raw)
+    if (attr && attr.key === path) continue
+    kept.push(token.raw)
+  }
+  if (value != null && value !== "") {
+    kept.push(formatAttrToken(path, value, options?.exclude ?? false))
+  }
+  return kept.join(" ").trim()
+}
+
 export function parseQuery(query: string): TraceQueryFilters {
   const filters: TraceQueryFilters = {}
+  const attrs = new Map<string, AttrFilter>()
 
   for (const token of splitTokens(query)) {
+    const attr = parseAttrToken(token.raw)
+    if (attr) {
+      attrs.set(attr.key, attr)
+      continue
+    }
+
     const { key: rawKey, value } = parseKeyValue(token.raw)
     if (!rawKey || !value) continue
 
@@ -296,6 +379,7 @@ export function parseQuery(query: string): TraceQueryFilters {
     }
   }
 
+  if (attrs.size > 0) filters.attrs = [...attrs.values()]
   return filters
 }
 
@@ -312,6 +396,9 @@ export function serializeFilters(filters: TraceQueryFilters): string {
   if (filters.name) parts.push(`name:${quoteIfNeeded(filters.name)}`)
   const durationToken = serializeDurationToken(filters)
   if (durationToken) parts.push(`duration:${durationToken}`)
+  for (const attr of filters.attrs ?? []) {
+    parts.push(formatAttrToken(attr.key, attr.value, attr.exclude))
+  }
 
   return parts.join(" ")
 }
@@ -572,6 +659,11 @@ export function filtersToSearchParams(
   if (sort !== DEFAULT_TRACE_SORT || order !== DEFAULT_TRACE_ORDER) {
     params.set("sort", sort)
     params.set("order", order)
+  }
+  for (const attr of filters.attrs ?? []) {
+    const pair = `${attr.key}:${attr.value}`
+    if (attr.exclude) params.append("attr_not", pair)
+    else params.append("attr", pair)
   }
   return params
 }

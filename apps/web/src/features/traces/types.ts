@@ -1,12 +1,8 @@
-export type TraceStatus = "ok" | "error" | "unset"
+import type { JsonValue } from "@/lib/json"
 
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+export type { JsonValue }
+
+export type TraceStatus = "ok" | "error" | "unset"
 
 export type TraceListItem = {
   id: string

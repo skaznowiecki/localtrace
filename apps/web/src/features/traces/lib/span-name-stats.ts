@@ -1,4 +1,4 @@
-import { getSpanColor } from "../service-colors"
+import { getSpanColor } from "@/lib/service-colors"
 import type { Span } from "../types"
 import { spanDisplayLabel } from "./span-display"
 

@@ -39,17 +39,21 @@ Colocate by feature, not by type.
 ```
 src/
   features/<feature>/   # components, hooks, api, types
-  components/ui/        # shared primitives only (shadcn)
+  features/time-range/  # app-wide live/lookback (provider + header)
+  components/           # product display used by 2+ features
+  components/ui/        # shared primitives only (shadcn + list chrome)
   routes/               # thin route shells → import from features
-  lib/                  # shared utils
+  lib/                  # shared utils (json, api, brand-catalog, colors)
 ```
 
 ### Rules
 
-- New UI/logic lives in `features/<name>/`, not in `components/` or `routes/`.
+- New UI/logic lives in `features/<name>/`, not in `routes/`.
 - Routes only wire URL → feature. No business logic in route files.
 - `components/ui/` is shared primitives only — never feature-specific code.
+- `components/` (outside `ui/`) is product display used by 2+ features (`ServiceBadge`, `AttributeTree`, brand icons).
 - Prefer colocation: keep a feature's pieces together; extract to shared only when reused by 2+ features.
+- Features do not import other features. Shared code goes to `lib/`, `components/ui/`, `components/`, or `features/time-range`.
 - **Interactive elements get `cursor-pointer`.** Any control with an action (buttons, toggles, collapsible triggers, clickable rows, expand/collapse chevrons, links that act as buttons) must use `cursor-pointer`. Prefer putting it on shared primitives (`Button`, `Toggle`, `CollapsibleTrigger`, …) so feature code inherits it; add it explicitly on custom `<button>` / clickable surfaces.
 
 ### Span overview strategies (`features/traces`)
@@ -61,7 +65,7 @@ apps/api/src/features/traces/helpers/span-type/
   resolve.ts            # classify() — first-match
   detectors/
     index.ts            # ordered registry (more specific first)
-    redis.ts / mongo.ts / sql.ts / prisma.ts / s3.ts / openrouter.ts / express.ts / http.ts
+    redis.ts / mongo.ts / sql.ts / prisma.ts / s3.ts / openrouter.ts / trpc.ts / express.ts / http.ts
 
 apps/web/src/features/traces/components/span-overview/
   types.ts              # SpanOverviewStrategy { id, match, render }
@@ -72,7 +76,7 @@ apps/web/src/features/traces/components/span-overview/
     index.ts            # ordered registry (first match wins)
     sql.tsx             # postgres / mysql / sqlite / sql
     clickhouse.tsx      # clickhouse (often no db.statement — Datadog omits the SQL)
-    prisma.tsx / redis.tsx / mongo.tsx / s3.tsx / openrouter.tsx / express.tsx / http.tsx
+    prisma.tsx / redis.tsx / mongo.tsx / s3.tsx / openrouter.tsx / trpc.tsx / express.tsx / http.tsx
 ```
 
 **How to add a type**
@@ -81,7 +85,7 @@ apps/web/src/features/traces/components/span-overview/
 2. Web: `span-overview/strategies/<id>.tsx` — `match: (span) => span.type === "<id>"`. Register in `strategies/index.ts`.
 3. Do not change `SpanDto` shape (`type` + `payload_path` stay generic).
 
-Current detector order: redis → mongo → sql → prisma → s3 → openrouter → express → http.
+Current detector order: redis → mongo → sql → prisma → s3 → openrouter → trpc → express → http.
 
 **Rules**
 
@@ -107,6 +111,21 @@ features/traces/components/
 - List Status column prefers `HttpStatusCodeBadge` when `trace.httpStatusCode` is set; otherwise falls back to `TraceStatusBadge` (ok/error/unset).
 - Do **not** N+1-fetch `/api/traces/{id}` to enrich the list. Detail is loaded only when the drawer opens (`useTraceDetail`). List `httpStatusCode` comes from the list API when present; otherwise show `TraceStatusBadge`.
 
+### tRPC display (`features/traces`)
+
+tRPC procedures arrive as generic `trpc.procedure` spans. Classify via `rpc.system` / `trpc.path`, then show the procedure path — never the raw span name.
+
+```
+features/traces/components/display/TrpcTypeBadge.tsx   # query / mutation / subscription
+features/traces/lib/trpc-spans.ts                      # extractTrpcSpanMeta / trpcProcedureLabel
+```
+
+**Rules**
+
+- Procedure type → `TrpcTypeBadge` (waterfall stats, drawer header, tRPC overview).
+- Waterfall / stats labels use `trpc.path` (via `spanDisplayLabel`), not `trpc.procedure`.
+- Overview matches `span.type === "trpc"` from the API detector.
+
 ## Anatomy of a feature
 
 A feature is a self-contained slice of the app (e.g. `traces`, `logs`). Everything it needs lives together and it exposes a small public surface through `index.ts`.
@@ -124,7 +143,7 @@ features/traces/
 ### Rules
 
 - Import a feature only through its `index.ts`. Never reach into its internals (`features/traces/hooks/useX`) from outside.
-- A feature may depend on `components/ui`, `lib`, and its own files. It should **not** import from another feature's internals — if two features share code, lift it to `lib/` (utils) or `components/ui` (primitives).
+- A feature may depend on `components/ui`, `components/` (shared product display), `lib`, `features/time-range`, and its own files. It should **not** import from another feature's internals — if two features share code, lift it to `lib/` (utils), `components/ui` (primitives), or `components/` (product display).
 - Keep files small and named by role: `TraceList.tsx`, `useTraces.ts`, `traces.api.ts`.
 
 ## Hooks vs Context — how to decide
@@ -160,7 +179,7 @@ export function useTracesContext() { /* useContext + guard */ }
 ### Guidance
 
 - Context is for **distribution**, hooks are for **logic**. They combine: a provider holds state via a hook, consumers read it via a `useXContext()` hook.
-- Don't put context at the app root unless the state is truly global (theme, auth). Feature state stays inside the feature.
+- Don't put context at the app root unless the state is truly global (theme, auth, live/lookback). Feature state stays inside the feature. App-wide live/lookback lives in `features/time-range` and is mounted from `routes/__root`.
 - If only 2–3 components need it and they're close, lift state up instead of adding context.
 - Never export a raw `Context` object — always expose a `useXContext()` hook that throws if used outside its provider.
 
@@ -172,8 +191,10 @@ export function useTracesContext() { /* useContext + guard */ }
 | Feature UI | `features/<f>/components/` |
 | Data fetching / logic | `features/<f>/hooks/` + `api/` |
 | Cross-component feature state | `features/<f>/context/` |
-| Reusable primitive (button, input) | `components/ui/` |
-| Generic helper (formatting, cn) | `lib/` |
+| App-wide live/lookback | `features/time-range/` |
+| Product display used by 2+ features | `components/` (e.g. `ServiceBadge`, `AttributeTree`) |
+| Reusable primitive (button, input, sortable head) | `components/ui/` |
+| Generic helper (formatting, cn, parseJson, brands) | `lib/` |
 | Truly global state | app-level provider in `routes/__root` |
 
 ## Backend stack (`apps/api`)
@@ -212,7 +233,7 @@ apps/api/src/
   features/
     traces/             list GET + store (called by ingest) + tools/
     logs/               list-by-trace GET + store + tools/
-    metrics/            store only
+    metrics/            store + MCP read tools
     catalog/            GET /api/services + tools/
     ingest/             OTLP + Sentry + Datadog providers + ingest service
     mcp/                Streamable HTTP /mcp — registers each feature's tools/
@@ -240,9 +261,18 @@ features/traces/
 - Zod lives in `schemas/<role>.ts`, one file per service. Services and tools do not define schemas.
 - Ingest does **not** have repositories. `features/ingest/services/ingest.ts` parses via a **provider** and calls `traces/logs/metrics` store.
 - Extract to `src/shared/` only when 2+ features use it (`db`, `helpers`, `errors`).
-- Trace summary rules (`trace-status`) live in `traces/helpers/`. List services are one `execute` per file (`list.ts`, `facets.ts`, `with-spans.ts`, `sql.ts`).
+- Trace summary rules (`trace-status`) live in `traces/helpers/`. List services are one `execute` per file (`list.ts`, `facets.ts`, `with-spans.ts`, `overview.ts`, `span.ts`, `sql.ts`, `search.ts`, `spans-by-type.ts`).
 - Import another feature only through its `index.ts`.
 - Agent surface lives in `features/<name>/tools/` (`register(server, db)`). `services/` stay execute-only. `features/mcp` only mounts `/mcp` and calls each feature's `tools.register`. `store` / ingest have no `tools/`.
+- MCP is agent-first: server `instructions` encode the playbook; `get_trace` defaults to overview; lists return `{ items, total, offset, limit, next_offset }`; prefer `since_minutes`. Do not register a raw SQLite MCP beside it.
+
+### MCP playbook (for agents using `/mcp`)
+
+1. `list_facets` / `list_log_facets` / `list_metric_facets` before inventing filter values.
+2. Prefer `since_minutes` over RFC3339 `since`.
+3. Do not call `get_trace` in a loop over `list_traces`.
+4. `get_trace` is overview (no attributes). `get_span` for attributes; `get_trace_spans` / `get_trace_sql` for typed payloads; `get_trace_logs` for logs.
+5. `breakdown: null` means still processing — retry `get_trace`.
 
 ### Ingest providers
 

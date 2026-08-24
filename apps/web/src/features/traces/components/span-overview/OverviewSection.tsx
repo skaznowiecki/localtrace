@@ -18,7 +18,7 @@ export function OverviewSection({ title, children }: OverviewSectionProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mb-1">
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 py-2 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase hover:text-foreground">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 py-2 text-left text-[13px] font-bold text-foreground">
         <ChevronDownIcon
           className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`}
         />

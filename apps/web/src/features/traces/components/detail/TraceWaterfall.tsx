@@ -21,7 +21,7 @@ import type {
   WaterfallRow,
   WaterfallSelection,
 } from "../../types"
-import { SpanVendorIcon } from "../display/brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 import { SpanName } from "../span-name"
 import { SpanGroupDetails } from "./SpanGroupDetails"
 import { TraceSpanDetails, type SpanDetailsTab } from "./TraceSpanDetails"

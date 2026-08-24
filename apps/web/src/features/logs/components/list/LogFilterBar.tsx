@@ -18,7 +18,8 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { resolveBrandFromName, SpanVendorIcon } from "@/features/traces"
+import { SpanVendorIcon } from "@/components/brand-icons"
+import { resolveBrandFromName } from "@/lib/brand-catalog"
 import { cn } from "@/lib/utils"
 
 import type { FacetValue, LogFacets } from "../../api/logs.api"

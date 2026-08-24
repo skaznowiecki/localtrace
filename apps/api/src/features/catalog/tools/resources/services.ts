@@ -18,7 +18,7 @@ export function register(server: McpServer, db: Db) {
           {
             uri: uri.href,
             mimeType: "application/json",
-            text: JSON.stringify(services, null, 2),
+            text: JSON.stringify(services),
           },
         ],
       }

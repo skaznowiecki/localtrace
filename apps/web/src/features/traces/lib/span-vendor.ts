@@ -5,7 +5,7 @@ import {
   isBrandId,
   resolveBrandFromName,
   type SpanVendor,
-} from "./brand-catalog"
+} from "@/lib/brand-catalog"
 
 export type { SpanVendor }
 export { resolveBrandFromName }
@@ -38,6 +38,7 @@ const TYPE_BRAND: Record<string, SpanVendor> = {
   prisma: "prisma",
   express: "express",
   openrouter: "openrouter",
+  trpc: "trpc",
 }
 
 function isPrismaScope(scopeName: string | null): boolean {

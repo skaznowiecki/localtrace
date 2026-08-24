@@ -62,6 +62,42 @@ export type TraceDetailDto = {
   spans: SpanDto[]
 }
 
+export type SpanOverviewDto = {
+  id: string
+  parent_id: string | null
+  name: string
+  service: string
+  type?: string
+  status: string
+  start_offset_ms: number
+  duration_ms: number
+  payload_path?: string
+}
+
+export type TraceOverviewDto = {
+  trace: TraceCardDto
+  spans: SpanOverviewDto[]
+  counts: {
+    spans: number
+    errors: number
+    by_type: Record<string, number>
+  }
+  hints: string[]
+}
+
+export type TypedSpanDto = {
+  span_id: string
+  trace_id: string
+  name: string
+  type: string
+  service: string
+  status: string
+  duration_ms: number
+  start_offset_ms: number
+  payload_path?: string
+  payload: Record<string, unknown>
+}
+
 export type SqlQueryDto = {
   span_id: string
   name: string

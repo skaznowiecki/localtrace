@@ -10,14 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatSpanDuration } from "@/lib/utils"
 
 import { extractHttpSpanMeta, isHttpSpan } from "../../lib/http-spans"
+import { extractTrpcSpanMeta, isTrpcSpan } from "../../lib/trpc-spans"
 import { resolveSpanVendor } from "../../lib/span-vendor"
 import type { Span, TraceLog, TraceSqlQuery } from "../../types"
-import { SpanVendorIcon } from "../display/brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpPath } from "../display/HttpPath"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
+import { TrpcTypeBadge } from "../display/TrpcTypeBadge"
 import { resolveSpanOverview } from "../span-overview"
-import { AttributeTree, isAttributeTreeEmpty } from "./AttributeTree"
+import { TraceAttributeTree, isAttributeTreeEmpty } from "./TraceAttributeTree"
 import { LogList } from "./LogList"
 import { SqlQueryList } from "./SqlQueryList"
 
@@ -63,10 +65,10 @@ function MetaSection({
 
   if (empty) {
     return (
-      <div className="flex w-full items-center gap-1.5 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground/40 uppercase">
+      <div className="flex w-full items-center gap-1.5 py-2 text-[13px] font-bold text-muted-foreground/40">
         <ChevronDownIcon className="size-3.5 -rotate-90 opacity-50" />
         <span>{title}</span>
-        <span className="font-normal normal-case tracking-normal">
+        <span className="font-normal">
           {emptyLabel}
         </span>
       </div>
@@ -75,7 +77,7 @@ function MetaSection({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 py-2 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase hover:text-foreground">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 py-2 text-left text-[13px] font-bold text-foreground">
         <ChevronDownIcon
           className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`}
         />
@@ -91,12 +93,13 @@ function MetaSection({
 
 function SpanDetailsHeader({ span }: { span: Span }) {
   const http = isHttpSpan(span) ? extractHttpSpanMeta(span) : null
+  const trpc = isTrpcSpan(span) ? extractTrpcSpanMeta(span) : null
   const vendor = resolveSpanVendor(span)
   const title =
     http?.route ??
     (http?.method && span.name.startsWith(`${http.method} `)
       ? span.name.slice(http.method.length).trim()
-      : span.name)
+      : trpc?.path ?? span.name)
 
   return (
     <div className="shrink-0 border-b px-4 py-4">
@@ -104,6 +107,9 @@ function SpanDetailsHeader({ span }: { span: Span }) {
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {vendor ? <SpanVendorIcon vendor={vendor} className="size-5" /> : null}
           {http?.method ? <HttpMethodBadge method={http.method} /> : null}
+          {trpc?.procedureType && !http?.method ? (
+            <TrpcTypeBadge type={trpc.procedureType} className="text-[11px]" />
+          ) : null}
           <p className="min-w-0 flex-1 truncate text-base font-medium">
             {http?.method ? (
               <HttpPath
@@ -111,7 +117,9 @@ function SpanDetailsHeader({ span }: { span: Span }) {
                 className="text-base font-sans"
               />
             ) : (
-              span.name
+              <span className={trpc?.path ? "font-mono" : undefined}>
+                {title}
+              </span>
             )}
           </p>
           {http?.statusCode ? (
@@ -211,7 +219,7 @@ export function TraceSpanDetails({
             empty={isAttributeTreeEmpty(span.attributes)}
           >
             {/* Key only the tree so expand state resets without remounting the whole panel. */}
-            <AttributeTree key={span.id} value={span.attributes} />
+            <TraceAttributeTree key={span.id} value={span.attributes} />
           </MetaSection>
 
           <MetaSection
@@ -219,7 +227,7 @@ export function TraceSpanDetails({
             defaultOpen={false}
             empty={isAttributeTreeEmpty(span.events)}
           >
-            <AttributeTree value={span.events} />
+            <TraceAttributeTree value={span.events} />
           </MetaSection>
 
           <MetaSection
@@ -227,7 +235,7 @@ export function TraceSpanDetails({
             defaultOpen={false}
             empty={isAttributeTreeEmpty(span.resourceAttributes)}
           >
-            <AttributeTree value={span.resourceAttributes} />
+            <TraceAttributeTree value={span.resourceAttributes} />
           </MetaSection>
 
           <MetaSection
@@ -236,7 +244,7 @@ export function TraceSpanDetails({
             empty={!span.scopeName && !span.scopeVersion}
             emptyLabel="No scope info"
           >
-            <AttributeTree
+            <TraceAttributeTree
               value={{
                 name: span.scopeName,
                 version: span.scopeVersion,
@@ -249,7 +257,7 @@ export function TraceSpanDetails({
             defaultOpen={false}
             empty={isAttributeTreeEmpty(span.links)}
           >
-            <AttributeTree value={span.links} />
+            <TraceAttributeTree value={span.links} />
           </MetaSection>
         </TabsContent>
 

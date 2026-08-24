@@ -13,11 +13,23 @@ function PrismaOverview({ span }: { span: Span }) {
   return (
     <OverviewSection title="Prisma">
       <div className="pb-2 pl-5">
-        {operation ? <KvRow label="Operation">{operation}</KvRow> : (
+        {operation ? (
+          <KvRow label="Operation" fieldKey="name">
+            {operation}
+          </KvRow>
+        ) : (
           <KvRow label="Name">{span.name}</KvRow>
         )}
-        {model ? <KvRow label="Model">{model}</KvRow> : null}
-        {method ? <KvRow label="Method">{method}</KvRow> : null}
+        {model ? (
+          <KvRow label="Model" fieldKey="model">
+            {model}
+          </KvRow>
+        ) : null}
+        {method ? (
+          <KvRow label="Method" fieldKey="method">
+            {method}
+          </KvRow>
+        ) : null}
       </div>
     </OverviewSection>
   )

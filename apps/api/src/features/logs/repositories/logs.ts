@@ -127,6 +127,10 @@ export async function list(
     conditions.push("time_ns >= ?")
     params.push(filters.sinceNs)
   }
+  if (filters.untilNs != null) {
+    conditions.push("time_ns <= ?")
+    params.push(filters.untilNs)
+  }
 
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
   params.push(filters.limit, filters.offset)
@@ -135,6 +139,47 @@ export async function list(
     params,
   )
   return rows.map((row) => mapRow(row))
+}
+
+export async function count(
+  conn: DbConn,
+  filters: LogListFilters,
+): Promise<number> {
+  const conditions: string[] = []
+  const params: SqlValue[] = []
+
+  if (filters.service) {
+    conditions.push("service_name = ?")
+    params.push(filters.service)
+  }
+  if (filters.severity) {
+    conditions.push(`${severitySql} = ?`)
+    params.push(filters.severity)
+  }
+  if (filters.message) {
+    conditions.push(
+      "LOWER(COALESCE(body_any, '')) LIKE LOWER(?) ESCAPE '\\'",
+    )
+    params.push(likeContains(filters.message))
+  }
+  if (filters.traceId) {
+    conditions.push(
+      "LOWER(COALESCE(trace_id, '')) LIKE LOWER(?) ESCAPE '\\'",
+    )
+    params.push(likeContains(filters.traceId))
+  }
+  if (filters.sinceNs != null) {
+    conditions.push("time_ns >= ?")
+    params.push(filters.sinceNs)
+  }
+  if (filters.untilNs != null) {
+    conditions.push("time_ns <= ?")
+    params.push(filters.untilNs)
+  }
+
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+  const counted = await conn.all(`SELECT count(*) AS n FROM logs${where}`, params)
+  return toNumber(counted[0]?.n)
 }
 
 async function counted(conn: DbConn, sql: string): Promise<FacetValue[]> {

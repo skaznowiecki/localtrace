@@ -3,7 +3,9 @@ import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ServiceBadge } from "@/features/traces"
+import { ServiceBadge } from "@/components/ServiceBadge"
+import { FacetSection } from "@/components/ui/facet-section"
+import { FacetValue } from "@/components/ui/facet-value"
 
 import type { LogFacets } from "../../api/logs.api"
 import {
@@ -12,8 +14,6 @@ import {
   type LogQueryFilters,
 } from "../../lib/log-filter"
 import { SeverityBadge } from "../display/SeverityBadge"
-import { LogFacetSection } from "./LogFacetSection"
-import { LogFacetValue } from "./LogFacetValue"
 
 type LogFacetPanelProps = {
   filters: LogQueryFilters
@@ -98,7 +98,7 @@ export function LogFacetPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <LogFacetSection title="Message" empty={false}>
+        <FacetSection title="Message" empty={false}>
           <TextFilter
             filterKey="message"
             value={filters.message ?? ""}
@@ -106,9 +106,9 @@ export function LogFacetPanel({
             ariaLabel="Filter by message"
             onSetFilter={onSetFilter}
           />
-        </LogFacetSection>
+        </FacetSection>
 
-        <LogFacetSection title="Trace ID" empty={false}>
+        <FacetSection title="Trace ID" empty={false}>
           <TextFilter
             filterKey="trace"
             value={filters.traceId ?? ""}
@@ -116,15 +116,15 @@ export function LogFacetPanel({
             ariaLabel="Filter by trace id"
             onSetFilter={onSetFilter}
           />
-        </LogFacetSection>
+        </FacetSection>
 
-        <LogFacetSection
+        <FacetSection
           title="Service"
           isLoading={isLoading}
           empty={!isLoading && facets.services.length === 0}
         >
           {facets.services.map((service) => (
-            <LogFacetValue
+            <FacetValue
               key={service.value}
               label={<ServiceBadge service={service.value} />}
               title={service.value}
@@ -133,15 +133,15 @@ export function LogFacetPanel({
               onSelect={() => toggle("service", service.value)}
             />
           ))}
-        </LogFacetSection>
+        </FacetSection>
 
-        <LogFacetSection
+        <FacetSection
           title="Severity"
           isLoading={isLoading}
           empty={!isLoading && facets.severities.length === 0}
         >
           {facets.severities.map((severity) => (
-            <LogFacetValue
+            <FacetValue
               key={severity.value}
               label={<SeverityBadge label={severity.value} />}
               count={severity.count}
@@ -153,7 +153,7 @@ export function LogFacetPanel({
               onSelect={() => toggle("severity", severity.value)}
             />
           ))}
-        </LogFacetSection>
+        </FacetSection>
       </div>
     </aside>
   )

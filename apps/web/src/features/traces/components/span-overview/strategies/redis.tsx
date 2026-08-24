@@ -13,9 +13,13 @@ function RedisOverview({ span }: { span: Span }) {
   return (
     <OverviewSection title="Redis">
       <div className="pb-2 pl-5">
-        {system ? <KvRow label="System">{system}</KvRow> : null}
+        {system ? (
+          <KvRow label="System" fieldKey="db.system">
+            {system}
+          </KvRow>
+        ) : null}
         {command ? (
-          <KvRow label="Command" copyValue={command}>
+          <KvRow label="Command" copyValue={command} fieldKey="db.statement">
             <span className="font-mono text-[12px] wrap-break-word whitespace-pre-wrap">
               {command}
             </span>

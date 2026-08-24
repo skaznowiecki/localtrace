@@ -23,11 +23,13 @@ import { cn } from "@/lib/utils"
 import type { FacetValue, TraceFacets } from "../../api/traces.api"
 import { resolveBrandFromName } from "../../lib/span-vendor"
 import {
+  replaceDraftLastToken,
+  splitDraftLastToken,
   splitQueryTokens,
   TRACE_FILTER_KEYS,
   type TraceFilterKey,
 } from "../../lib/trace-filter"
-import { SpanVendorIcon } from "../display/brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 
 type Suggestion = {
   id: string
@@ -99,6 +101,7 @@ function valueSuggestions(
 }
 
 function keySuggestions(needle: string): Suggestion[] {
+  if (needle.startsWith("@") || needle.startsWith("-@")) return []
   const lower = needle.toLowerCase()
   return TRACE_FILTER_KEYS.filter(
     (facet) =>
@@ -127,10 +130,20 @@ function activePhase(draft: string): ActivePhase {
   }
 }
 
-function splitChip(chip: string): { key: string; value: string | null } {
-  const colon = chip.indexOf(":")
-  if (colon === -1) return { key: chip, value: null }
-  return { key: chip.slice(0, colon), value: chip.slice(colon + 1) }
+function splitChip(chip: string): {
+  key: string
+  value: string | null
+  exclude: boolean
+} {
+  const exclude = chip.startsWith("-@")
+  const body = exclude ? chip.slice(1) : chip
+  const colon = body.indexOf(":")
+  if (colon === -1) return { key: body, value: null, exclude }
+  return {
+    key: body.slice(0, colon),
+    value: body.slice(colon + 1),
+    exclude,
+  }
 }
 
 type ChipColor = {
@@ -201,6 +214,13 @@ const CHIP_COLORS = {
     remove:
       "text-indigo-700/80 hover:bg-indigo-500/20 hover:text-indigo-800 dark:text-indigo-300/80 dark:hover:text-indigo-200",
   },
+  teal: {
+    container: "border-teal-500/30 bg-teal-500/10",
+    key: "text-teal-700 dark:text-teal-300/90",
+    value: "text-teal-800 dark:text-teal-200",
+    remove:
+      "text-teal-700/80 hover:bg-teal-500/20 hover:text-teal-800 dark:text-teal-300/80 dark:hover:text-teal-200",
+  },
   slate: {
     container: "border-slate-500/30 bg-slate-500/10",
     key: "text-slate-600 dark:text-slate-300/90",
@@ -211,7 +231,13 @@ const CHIP_COLORS = {
 } as const satisfies Record<string, ChipColor>
 
 /** Pick a color for a chip based on its filter key (status is value-aware). */
-function chipColor(key: string, value: string | null): ChipColor {
+function chipColor(
+  key: string,
+  value: string | null,
+  exclude = false,
+): ChipColor {
+  if (exclude) return CHIP_COLORS.rose
+  if (key.startsWith("@")) return CHIP_COLORS.teal
   switch (key.trim().toLowerCase()) {
     case "service":
       return CHIP_COLORS.sky
@@ -265,23 +291,34 @@ function FilterChip({
   chip: string
   onRemove: () => void
 }) {
-  const { key, value } = splitChip(chip)
-  const color = chipColor(key, value)
+  const { key, value, exclude } = splitChip(chip)
+  const color = chipColor(key, value, exclude)
+  const isAttr = key.startsWith("@")
+  const displayKey = isAttr ? key.slice(1) : key
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-lg border py-1 pr-1 pl-2.5 font-mono text-xs leading-none",
+        "inline-flex max-w-full shrink-0 items-center gap-1 rounded-lg border py-1 pr-1 pl-2.5 font-mono text-xs leading-none",
         color.container,
       )}
     >
-      <span className={color.key}>{key}</span>
+      <span className={color.key}>
+        {exclude ? <span className="opacity-70">-</span> : null}
+        {isAttr ? <span className="opacity-60">@</span> : null}
+        {displayKey}
+      </span>
       {value !== null ? (
         <>
           <span className={cn(color.key, "opacity-60")}>:</span>
           {key === "service" ? (
             <FilterBrandIcon name={value} className="size-3" />
           ) : null}
-          <span className={cn("font-medium", color.value)}>{value}</span>
+          <span
+            className={cn("min-w-0 max-w-72 truncate font-medium sm:max-w-96", color.value)}
+            title={value}
+          >
+            {value}
+          </span>
         </>
       ) : null}
       <button
@@ -351,7 +388,8 @@ export function TraceFilterBar({
     return () => window.clearTimeout(handle)
   }, [chips, draft, emitQuery])
 
-  const active = useMemo(() => activePhase(draft), [draft])
+  const draftToken = useMemo(() => splitDraftLastToken(draft).token, [draft])
+  const active = useMemo(() => activePhase(draftToken), [draftToken])
 
   const suggestions = useMemo(() => {
     const selected = new Set(chips.map((chip) => chip.toLowerCase()))
@@ -443,36 +481,40 @@ export function TraceFilterBar({
 
   const commitToken = useCallback(
     (token: string) => {
-      const trimmed = token.trim()
+      const source =
+        token === draft ? draft : replaceDraftLastToken(draft, token)
+      const { prefix, token: last } = splitDraftLastToken(source.trimEnd())
+      const trimmed = last.trim()
       if (!trimmed) return
-      // Skip if this exact filter is already selected.
+
       const alreadySelected = chips.some(
         (chip) => chip.toLowerCase() === trimmed.toLowerCase(),
       )
       if (alreadySelected) {
-        setDraft("")
-        emitQuery(chips, "")
+        const nextDraft = prefix.trim()
+        setDraft(nextDraft)
+        emitQuery(chips, nextDraft)
         return
       }
+
       const nextChips = [...chips, trimmed]
+      const nextDraft = prefix.trim()
       setChips(nextChips)
-      setDraft("")
-      emitQuery(nextChips, "")
+      setDraft(nextDraft)
+      emitQuery(nextChips, nextDraft)
     },
-    [chips, emitQuery],
+    [chips, draft, emitQuery],
   )
 
   const applySuggestion = useCallback(
     (suggestion: Suggestion) => {
       if (active.phase === "value") {
-        // A complete `key:value` filter → turn it into a chip and close.
         commitToken(suggestion.insert)
         closeSuggestions({ refocus: true })
         return
       }
-      // Picking a key (`method:`) → keep typing the value, stay open.
       allowAutoOpen()
-      setDraft(suggestion.insert)
+      setDraft(replaceDraftLastToken(draft, suggestion.insert))
       requestOpen()
       focusInput()
     },
@@ -481,6 +523,7 @@ export function TraceFilterBar({
       allowAutoOpen,
       closeSuggestions,
       commitToken,
+      draft,
       focusInput,
       requestOpen,
     ],

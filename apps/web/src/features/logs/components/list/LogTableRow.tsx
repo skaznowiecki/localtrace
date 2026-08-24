@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router"
 
 import { TableCell, TableRow } from "@/components/ui/table"
-import { ServiceBadge } from "@/features/traces"
+import { ServiceBadge } from "@/components/ServiceBadge"
 import { formatTraceDate } from "@/lib/utils"
 
 import { bodyToText } from "../../lib/severity"

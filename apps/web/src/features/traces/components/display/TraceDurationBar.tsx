@@ -6,9 +6,9 @@ import {
 import { cn, formatSpanDuration } from "@/lib/utils"
 
 import { resolveBrandFromName } from "../../lib/span-vendor"
-import { getServiceColor } from "../../service-colors"
+import { getServiceColor } from "@/lib/service-colors"
 import type { TraceBreakdownItem } from "../../types"
-import { SpanVendorIcon } from "./brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 
 type TraceDurationBarProps = {
   breakdown: TraceBreakdownItem[] | null

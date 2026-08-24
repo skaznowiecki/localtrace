@@ -16,7 +16,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { ServiceBadge } from "@/features/traces"
+import { ServiceBadge } from "@/components/ServiceBadge"
 import { cn, formatRelativeTime, formatTraceDate } from "@/lib/utils"
 
 import type { LogListItem } from "../../types"

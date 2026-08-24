@@ -57,6 +57,21 @@ const ORDER_SQL: Record<TraceSortOrder, string> = {
   desc: "DESC",
 }
 
+const ATTR_KEY_RE = /^[A-Za-z0-9_.-]+$/
+
+function jsonExtractPaths(
+  path: string,
+): { nested: string; flat: string } | null {
+  if (!ATTR_KEY_RE.test(path)) return null
+  const segments = path.split(".").filter((segment) => segment.length > 0)
+  if (segments.length === 0) return null
+  let nested = "$"
+  for (const segment of segments) {
+    nested += /^\d+$/.test(segment) ? `[${segment}]` : `.${segment}`
+  }
+  return { nested, flat: `$."${path}"` }
+}
+
 function orderBy(filters: TraceListFilters): string {
   const col = SORT_SQL[filters.sort]
   const dir = ORDER_SQL[filters.order]
@@ -173,6 +188,38 @@ export async function list(
     conditions.push("start_time_ns >= ?")
     params.push(filters.sinceNs)
   }
+  if (filters.untilNs != null) {
+    conditions.push("start_time_ns <= ?")
+    params.push(filters.untilNs)
+  }
+  for (const attr of filters.attrs ?? []) {
+    const paths = jsonExtractPaths(attr.key)
+    if (!paths) {
+      if (!attr.exclude) conditions.push("1 = 0")
+      continue
+    }
+    const matchSql = `(
+      CAST(json_extract(s.attributes, ?) AS TEXT) = ?
+      OR CAST(json_extract(s.attributes, ?) AS TEXT) = ?
+      OR CAST(json_extract(s.resource_attributes, ?) AS TEXT) = ?
+      OR CAST(json_extract(s.resource_attributes, ?) AS TEXT) = ?
+    )`
+    const existsSql = `EXISTS (
+      SELECT 1 FROM spans s
+      WHERE s.trace_id = traces.trace_id AND ${matchSql}
+    )`
+    conditions.push(attr.exclude ? `NOT ${existsSql}` : existsSql)
+    params.push(
+      paths.nested,
+      attr.value,
+      paths.flat,
+      attr.value,
+      paths.nested,
+      attr.value,
+      paths.flat,
+      attr.value,
+    )
+  }
 
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
   params.push(filters.limit, filters.offset)
@@ -181,6 +228,154 @@ export async function list(
     params,
   )
   return rows.map((row) => mapTrace(row))
+}
+
+export async function count(
+  conn: DbConn,
+  filters: TraceListFilters,
+): Promise<number> {
+  const conditions: string[] = []
+  const params: SqlValue[] = []
+
+  if (filters.service) {
+    conditions.push("root_service = ?")
+    params.push(filters.service)
+  }
+  if (filters.status) {
+    conditions.push("status_code = ?")
+    params.push(filters.status)
+  }
+  if (filters.method) {
+    conditions.push("upper(http_method) = upper(?)")
+    params.push(filters.method)
+  }
+  if (filters.httpStatusCode != null) {
+    conditions.push("http_status_code = ?")
+    params.push(filters.httpStatusCode)
+  }
+  if (filters.name) {
+    conditions.push("root_name LIKE '%' || ? || '%' COLLATE NOCASE")
+    params.push(filters.name)
+  }
+  if (filters.url) {
+    conditions.push("http_route = ?")
+    params.push(filters.url)
+  }
+  if (filters.durationMinNs != null) {
+    conditions.push("duration_ns >= ?")
+    params.push(filters.durationMinNs)
+  }
+  if (filters.durationMaxNs != null) {
+    conditions.push("duration_ns <= ?")
+    params.push(filters.durationMaxNs)
+  }
+  if (filters.sinceNs != null) {
+    conditions.push("start_time_ns >= ?")
+    params.push(filters.sinceNs)
+  }
+  if (filters.untilNs != null) {
+    conditions.push("start_time_ns <= ?")
+    params.push(filters.untilNs)
+  }
+  for (const attr of filters.attrs ?? []) {
+    const paths = jsonExtractPaths(attr.key)
+    if (!paths) {
+      if (!attr.exclude) conditions.push("1 = 0")
+      continue
+    }
+    const matchSql = `(
+      CAST(json_extract(s.attributes, ?) AS TEXT) = ?
+      OR CAST(json_extract(s.attributes, ?) AS TEXT) = ?
+      OR CAST(json_extract(s.resource_attributes, ?) AS TEXT) = ?
+      OR CAST(json_extract(s.resource_attributes, ?) AS TEXT) = ?
+    )`
+    const existsSql = `EXISTS (
+      SELECT 1 FROM spans s
+      WHERE s.trace_id = traces.trace_id AND ${matchSql}
+    )`
+    conditions.push(attr.exclude ? `NOT ${existsSql}` : existsSql)
+    params.push(
+      paths.nested,
+      attr.value,
+      paths.flat,
+      attr.value,
+      paths.nested,
+      attr.value,
+      paths.flat,
+      attr.value,
+    )
+  }
+
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+  const rows = await conn.all(`SELECT count(*) AS n FROM traces${where}`, params)
+  return toNumber(rows[0]?.n)
+}
+
+export async function recentIds(conn: DbConn, limit = 3): Promise<string[]> {
+  const rows = await conn.all(
+    `SELECT trace_id FROM traces ORDER BY start_time_ns DESC LIMIT ?`,
+    [limit],
+  )
+  return rows.map((row) => String(row.trace_id))
+}
+
+export async function findSpans(
+  conn: DbConn,
+  spanId: string,
+  traceId?: string,
+): Promise<SpanRecord[]> {
+  if (traceId) {
+    const rows = await conn.all(
+      `${SPAN_SELECT} WHERE trace_id = ? AND span_id = ?`,
+      [traceId, spanId],
+    )
+    return rows.map((row) => mapSpan(row))
+  }
+  const rows = await conn.all(`${SPAN_SELECT} WHERE span_id = ? LIMIT 3`, [
+    spanId,
+  ])
+  return rows.map((row) => mapSpan(row))
+}
+
+export type SpanSearchFilters = {
+  q?: string
+  service?: string
+  sinceNs?: bigint
+  untilNs?: bigint
+  scanLimit: number
+}
+
+export async function searchSpans(
+  conn: DbConn,
+  filters: SpanSearchFilters,
+): Promise<SpanRecord[]> {
+  const conditions: string[] = []
+  const params: SqlValue[] = []
+  if (filters.service) {
+    conditions.push("service_name = ?")
+    params.push(filters.service)
+  }
+  if (filters.sinceNs != null) {
+    conditions.push("start_time_ns >= ?")
+    params.push(filters.sinceNs)
+  }
+  if (filters.untilNs != null) {
+    conditions.push("start_time_ns <= ?")
+    params.push(filters.untilNs)
+  }
+  if (filters.q) {
+    conditions.push(
+      "(name LIKE '%' || ? || '%' COLLATE NOCASE OR attributes LIKE '%' || ? || '%')",
+    )
+    params.push(filters.q, filters.q)
+  }
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : ""
+  params.push(filters.scanLimit)
+  const rows = await conn.all(
+    `${SPAN_SELECT}${where} ORDER BY duration_ns DESC LIMIT ?`,
+    params,
+  )
+  return rows.map((row) => mapSpan(row))
 }
 
 const DURATION_BUCKET_VALUES = [

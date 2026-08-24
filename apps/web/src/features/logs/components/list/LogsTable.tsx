@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useLoadMoreOnScroll } from "@/lib/use-load-more"
+import { SortableHead } from "@/components/ui/sortable-head"
 import {
   Table,
   TableBody,
@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useTraceTimeRange } from "@/features/traces"
+import { useTimeRange } from "@/features/time-range"
+import { useLoadMoreOnScroll } from "@/lib/use-load-more"
 
 import { useLogFacets } from "../../hooks/useLogFacets"
 import { useLogFilters } from "../../hooks/useLogFilters"
@@ -23,7 +24,6 @@ import { LogDrawer } from "../detail/LogDrawer"
 import { LogFacetPanel } from "./LogFacetPanel"
 import { LogFilterBar } from "./LogFilterBar"
 import { LogTableRow } from "./LogTableRow"
-import { SortableHead } from "./SortableHead"
 
 const FACETS_OPEN_KEY = "lt.logs.facetsOpen"
 
@@ -69,7 +69,7 @@ export function LogsTable() {
   const { query, filters, setQuery, setFilter } = useLogFilters()
   const { sort, order, setSort } = useLogSort()
   const { facets, isLoading: facetsLoading } = useLogFacets()
-  const { live, lookbackMs, pausedSince } = useTraceTimeRange()
+  const { live, lookbackMs, pausedSince } = useTimeRange()
 
   useEffect(() => {
     try {

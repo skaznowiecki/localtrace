@@ -13,9 +13,13 @@ function MongoOverview({ span }: { span: Span }) {
   return (
     <OverviewSection title="Mongo">
       <div className="pb-2 pl-5">
-        {system ? <KvRow label="System">{system}</KvRow> : null}
+        {system ? (
+          <KvRow label="System" fieldKey="db.system">
+            {system}
+          </KvRow>
+        ) : null}
         {query ? (
-          <KvRow label="Query" copyValue={query}>
+          <KvRow label="Query" copyValue={query} fieldKey="db.statement">
             <pre className="font-mono text-[12px] leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground">
               {query}
             </pre>

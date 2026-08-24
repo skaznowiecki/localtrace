@@ -1,5 +1,5 @@
 import * as z from "zod"
-import { rawInput } from "@shared/helpers"
+import { rawInput, windowNs } from "@shared/helpers"
 import { SEVERITY_BUCKETS } from "../helpers/severity"
 import type { LogListFilters, LogSortField, LogSortOrder } from "../types/log"
 
@@ -32,25 +32,26 @@ function parseIntParam(
   return value
 }
 
-function parseSinceNs(
-  since: string | undefined,
+function parseTimeNs(
+  raw: string | undefined,
   ctx: z.RefinementCtx,
+  label: string,
 ): bigint | undefined {
-  if (!since) return undefined
-  const ms = Date.parse(since)
+  if (!raw) return undefined
+  const ms = Date.parse(raw)
   if (Number.isNaN(ms)) {
     ctx.addIssue({
       code: "custom",
-      path: ["since"],
-      message: `invalid since (expected RFC3339): ${since}`,
+      path: [label],
+      message: `invalid ${label} (expected RFC3339): ${raw}`,
     })
     return z.NEVER
   }
   if (ms < 0) {
     ctx.addIssue({
       code: "custom",
-      path: ["since"],
-      message: "invalid since: timestamp must be non-negative",
+      path: [label],
+      message: `invalid ${label}: timestamp must be non-negative`,
     })
     return z.NEVER
   }
@@ -109,6 +110,23 @@ export const input = z.object({
     .datetime({ offset: true })
     .optional()
     .describe("RFC3339 timestamp; only logs after this"),
+  until: z
+    .iso
+    .datetime({ offset: true })
+    .optional()
+    .describe("RFC3339 timestamp; only logs before this"),
+  since_minutes: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Only logs from the last N minutes (preferred over since)"),
+  until_minutes: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("Only logs older than N minutes ago"),
   sort: sortField.optional().describe("Sort column (default date)"),
   order: sortOrder.optional().describe("Sort direction (default desc)"),
   offset: z
@@ -121,6 +139,12 @@ export const input = z.object({
 })
 
 export function filters(args: z.infer<typeof input>): LogListFilters {
+  const window = windowNs({
+    since: args.since,
+    until: args.until,
+    since_minutes: args.since_minutes,
+    until_minutes: args.until_minutes,
+  })
   return {
     limit: args.limit ?? 50,
     offset: args.offset ?? 0,
@@ -130,8 +154,8 @@ export function filters(args: z.infer<typeof input>): LogListFilters {
     severity: args.severity,
     message: args.message,
     traceId: args.trace_id ? parseTraceIdFilter(args.trace_id) : undefined,
-    sinceNs:
-      args.since != null ? BigInt(Date.parse(args.since)) * 1_000_000n : undefined,
+    sinceNs: window.sinceNs,
+    untilNs: window.untilNs,
     raw: args.raw,
   }
 }
@@ -145,6 +169,7 @@ export const query = z
     body: qstr,
     trace_id: qstr,
     since: qstr,
+    until: qstr,
     sort: qstr,
     order: qstr,
     offset: qstr,
@@ -168,7 +193,8 @@ export const query = z
       severity: parseSeverity(value.severity, ctx),
       message: value.message ?? value.body,
       traceId: parseTraceIdFilter(value.trace_id),
-      sinceNs: parseSinceNs(value.since, ctx),
+      sinceNs: parseTimeNs(value.since, ctx, "since"),
+      untilNs: parseTimeNs(value.until, ctx, "until"),
       raw: value.raw === "true" || value.raw === "1",
     }
   })

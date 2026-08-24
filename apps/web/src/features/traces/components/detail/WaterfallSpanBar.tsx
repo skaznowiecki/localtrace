@@ -10,9 +10,9 @@ import { cn, formatSpanDuration } from "@/lib/utils"
 import { extractHttpSpanMeta, isHttpSpan } from "../../lib/http-spans"
 import { spanDisplayLabel } from "../../lib/span-display"
 import { resolveSpanVendor } from "../../lib/span-vendor"
-import { getSpanColor } from "../../service-colors"
+import { getSpanColor } from "@/lib/service-colors"
 import type { FlatSpanRow } from "../../types"
-import { SpanVendorIcon } from "../display/brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 
 const SHORT_BAR_PCT = 8
 
@@ -43,14 +43,14 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
       : 0
   const short = isShortBar(widthPct)
   const isGroup = span.group != null
-  const barColor =
-    span.status === "error"
-      ? "var(--destructive)"
-      : getSpanColor(span.service, span.name)
-
   const label = isGroup
     ? `${span.group!.name} ×${span.group!.count}`
     : spanDisplayLabel(span)
+
+  const barColor =
+    span.status === "error"
+      ? "var(--destructive)"
+      : getSpanColor(span.service, label)
 
   const tooltipTarget = (() => {
     if (isGroup || !isHttpSpan(span)) return null

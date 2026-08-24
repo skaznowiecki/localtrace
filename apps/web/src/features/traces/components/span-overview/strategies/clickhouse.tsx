@@ -2,7 +2,7 @@ import { Copyable } from "@/components/ui/copyable"
 
 import { payloadText, readAttr } from "../../../lib/span-attributes"
 import type { Span } from "../../../types"
-import { highlightSql } from "../../attribute-value/strategies/sql"
+import { highlightSql } from "@/components/attribute-value/strategies/sql"
 import type { SpanOverviewStrategy } from "../types"
 import { KvRow } from "../KvRow"
 import { OverviewSection } from "../OverviewSection"
@@ -61,12 +61,36 @@ function ClickhouseOverview({ span }: { span: Span }) {
   return (
     <OverviewSection title="ClickHouse">
       <div className="pb-2 pl-5">
-        {system ? <KvRow label="System">{system}</KvRow> : null}
-        {host ? <KvRow label="Host">{host}</KvRow> : null}
-        {operation ? <KvRow label="Operation">{operation}</KvRow> : null}
-        {page ? <KvRow label="Page">{page}</KvRow> : null}
-        {component ? <KvRow label="Component">{component}</KvRow> : null}
-        {queryId ? <KvRow label="Query ID">{queryId}</KvRow> : null}
+        {system ? (
+          <KvRow label="System" fieldKey="db.system">
+            {system}
+          </KvRow>
+        ) : null}
+        {host ? (
+          <KvRow label="Host" fieldKey="server.address">
+            {host}
+          </KvRow>
+        ) : null}
+        {operation ? (
+          <KvRow label="Operation" fieldKey="db.operation">
+            {operation}
+          </KvRow>
+        ) : null}
+        {page ? (
+          <KvRow label="Page" fieldKey="clickhouse.page">
+            {page}
+          </KvRow>
+        ) : null}
+        {component ? (
+          <KvRow label="Component" fieldKey="clickhouse.component">
+            {component}
+          </KvRow>
+        ) : null}
+        {queryId ? (
+          <KvRow label="Query ID" fieldKey="db.clickhouse.query_id">
+            {queryId}
+          </KvRow>
+        ) : null}
         {resultRows ? (
           <KvRow label="Result rows" copyValue={resultRows}>
             {formatCount(resultRows)}

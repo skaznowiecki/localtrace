@@ -6,4 +6,8 @@ export const query = rawQuery
 export const input = z.object({
   trace_id: traceId.describe("32-char hex trace id"),
   raw: rawInput,
+  detail: z
+    .enum(["overview", "full"])
+    .optional()
+    .describe("overview (default) is a compact tree; full includes span attributes"),
 })

@@ -81,6 +81,14 @@ export type TraceListFilters = {
   durationMinNs?: bigint
   durationMaxNs?: bigint
   sinceNs?: bigint
+  untilNs?: bigint
+  attrs?: AttrFilter[]
+}
+
+export type AttrFilter = {
+  key: string
+  value: string
+  exclude?: boolean
 }
 
 export type FacetValue = {

@@ -3,7 +3,7 @@ import { formatSpanDuration, formatTraceDate } from "@/lib/utils"
 
 import type { TraceListItem } from "../../types"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
-import { ServiceBadge } from "../display/ServiceBadge"
+import { ServiceBadge } from "@/components/ServiceBadge"
 import { TraceDurationBar } from "../display/TraceDurationBar"
 import { TraceStatusBadge } from "../display/TraceStatusBadge"
 import { TraceName } from "../trace-name"

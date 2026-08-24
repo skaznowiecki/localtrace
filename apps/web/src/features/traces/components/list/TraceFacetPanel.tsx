@@ -1,7 +1,10 @@
 import { PanelLeftCloseIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 
+import { ServiceBadge } from "@/components/ServiceBadge"
 import { Button } from "@/components/ui/button"
+import { FacetSection } from "@/components/ui/facet-section"
+import { FacetValue } from "@/components/ui/facet-value"
 import { Input } from "@/components/ui/input"
 
 import type { TraceFacets } from "../../api/traces.api"
@@ -10,11 +13,8 @@ import {
   type TraceFilterKey,
   type TraceQueryFilters,
 } from "../../lib/trace-filter"
-import { ServiceBadge } from "../display/ServiceBadge"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"
-import { TraceFacetSection } from "./TraceFacetSection"
-import { TraceFacetValue } from "./TraceFacetValue"
 
 const ROUTE_PAGE_SIZE = 30
 
@@ -79,13 +79,13 @@ export function TraceFacetPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <TraceFacetSection
+        <FacetSection
           title="Service"
           isLoading={isLoading}
           empty={!isLoading && facets.services.length === 0}
         >
           {facets.services.map((service) => (
-            <TraceFacetValue
+            <FacetValue
               key={service.value}
               label={<ServiceBadge service={service.value} />}
               title={service.value}
@@ -94,15 +94,15 @@ export function TraceFacetPanel({
               onSelect={() => toggle("service", service.value)}
             />
           ))}
-        </TraceFacetSection>
+        </FacetSection>
 
-        <TraceFacetSection
+        <FacetSection
           title="Status"
           isLoading={isLoading}
           empty={!isLoading && facets.statuses.length === 0}
         >
           {facets.statuses.map((status) => (
-            <TraceFacetValue
+            <FacetValue
               key={status.value}
               label={status.value}
               count={status.count}
@@ -110,15 +110,15 @@ export function TraceFacetPanel({
               onSelect={() => toggle("status", status.value)}
             />
           ))}
-        </TraceFacetSection>
+        </FacetSection>
 
-        <TraceFacetSection
+        <FacetSection
           title="Method"
           isLoading={isLoading}
           empty={!isLoading && facets.methods.length === 0}
         >
           {facets.methods.map((method) => (
-            <TraceFacetValue
+            <FacetValue
               key={method.value}
               label={
                 <HttpMethodBadge method={method.value} className="text-[10px]" />
@@ -128,15 +128,15 @@ export function TraceFacetPanel({
               onSelect={() => toggle("method", method.value)}
             />
           ))}
-        </TraceFacetSection>
+        </FacetSection>
 
-        <TraceFacetSection
+        <FacetSection
           title="HTTP status"
           isLoading={isLoading}
           empty={!isLoading && facets.httpStatusCodes.length === 0}
         >
           {facets.httpStatusCodes.map((code) => (
-            <TraceFacetValue
+            <FacetValue
               key={code.value}
               label={
                 <HttpStatusCodeBadge
@@ -153,9 +153,9 @@ export function TraceFacetPanel({
               onSelect={() => toggle("http.status_code", code.value)}
             />
           ))}
-        </TraceFacetSection>
+        </FacetSection>
 
-        <TraceFacetSection
+        <FacetSection
           title="Route"
           isLoading={isLoading}
           empty={!isLoading && facets.routes.length === 0}
@@ -174,7 +174,7 @@ export function TraceFacetPanel({
           }
         >
           {visibleRoutes.map((route) => (
-            <TraceFacetValue
+            <FacetValue
               key={route.value}
               label={route.value}
               title={route.value}
@@ -192,16 +192,16 @@ export function TraceFacetPanel({
               Show more ({filteredRoutes.length - routeLimit} left)
             </button>
           ) : null}
-        </TraceFacetSection>
+        </FacetSection>
 
-        <TraceFacetSection
+        <FacetSection
           title="Duration"
           defaultOpen
           isLoading={isLoading}
           empty={!isLoading && facets.durations.length === 0}
         >
           {facets.durations.map((bucket) => (
-            <TraceFacetValue
+            <FacetValue
               key={bucket.value}
               label={durationLabel(bucket.value)}
               count={bucket.count}
@@ -213,7 +213,7 @@ export function TraceFacetPanel({
               onSelect={() => toggle("duration", bucket.value)}
             />
           ))}
-        </TraceFacetSection>
+        </FacetSection>
       </div>
     </aside>
   )

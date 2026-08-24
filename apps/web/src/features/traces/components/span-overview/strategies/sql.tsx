@@ -2,7 +2,7 @@ import { Copyable } from "@/components/ui/copyable"
 
 import { payloadText, readAttr } from "../../../lib/span-attributes"
 import type { Span } from "../../../types"
-import { highlightSql } from "../../attribute-value/strategies/sql"
+import { highlightSql } from "@/components/attribute-value/strategies/sql"
 import type { SpanOverviewStrategy } from "../types"
 import { KvRow } from "../KvRow"
 import { OverviewSection } from "../OverviewSection"
@@ -39,8 +39,16 @@ function SqlOverview({ span }: { span: Span }) {
   return (
     <OverviewSection title={title}>
       <div className="pb-2 pl-5">
-        {system ? <KvRow label="System">{system}</KvRow> : null}
-        {host ? <KvRow label="Host">{host}</KvRow> : null}
+        {system ? (
+          <KvRow label="System" fieldKey="db.system">
+            {system}
+          </KvRow>
+        ) : null}
+        {host ? (
+          <KvRow label="Host" fieldKey="server.address">
+            {host}
+          </KvRow>
+        ) : null}
         {statement ? (
           <div className="mt-2">
             <Copyable value={statement} className="w-full">

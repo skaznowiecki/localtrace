@@ -2,6 +2,7 @@ import type { Span } from "../types"
 import { extractHttpSpanMeta, isHttpSpan } from "./http-spans"
 import { isHttpMethodOnlyName } from "./http-resource-name"
 import { readAttr } from "./span-attributes"
+import { trpcProcedureLabel } from "./trpc-spans"
 
 const SQL_VERB =
   /^\s*(WITH|SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|EXPLAIN|TRUNCATE|MERGE)\b/i
@@ -66,8 +67,12 @@ export function compactSqlLabel(sql: string): string | null {
  * Bare HTTP verbs become `GET s3.us-east-1.amazonaws.com` (host only).
  */
 export function spanDisplayLabel(
-  span: Pick<Span, "name" | "attributes" | "service">,
+  span: Pick<Span, "name" | "attributes" | "service"> &
+    Partial<Pick<Span, "type" | "payloadPath">>,
 ): string {
+  const trpc = trpcProcedureLabel(span)
+  if (trpc) return trpc
+
   const prisma = prismaOperationLabel(span)
   if (prisma) return prisma
 

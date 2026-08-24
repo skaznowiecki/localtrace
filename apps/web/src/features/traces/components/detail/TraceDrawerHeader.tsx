@@ -25,9 +25,9 @@ import {
 } from "@/lib/utils"
 
 import { resolveBrandFromName } from "../../lib/span-vendor"
-import { getServiceColor } from "../../service-colors"
+import { getServiceColor } from "@/lib/service-colors"
 import type { TraceListItem, TraceStatus } from "../../types"
-import { SpanVendorIcon } from "../display/brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 import { HttpMethodBadge } from "../display/HttpMethodBadge"
 import { HttpPath } from "../display/HttpPath"
 import { HttpStatusCodeBadge } from "../display/HttpStatusCodeBadge"

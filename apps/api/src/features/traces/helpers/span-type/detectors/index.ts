@@ -7,6 +7,7 @@ import { prismaDetector } from "./prisma"
 import { redisDetector } from "./redis"
 import { s3Detector } from "./s3"
 import { sqlDetector } from "./sql"
+import { trpcDetector } from "./trpc"
 
 /** First match wins — more specific detectors first. */
 export const spanTypeDetectors: SpanTypeDetector[] = [
@@ -16,6 +17,7 @@ export const spanTypeDetectors: SpanTypeDetector[] = [
   prismaDetector,
   s3Detector,
   openrouterDetector,
+  trpcDetector,
   expressDetector,
   httpDetector,
 ]

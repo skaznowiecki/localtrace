@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll"
 import type { JsonValue, Span, TraceLog } from "../../types"
-import { AttributeTree, isAttributeTreeEmpty } from "./AttributeTree"
+import { TraceAttributeTree, isAttributeTreeEmpty } from "./TraceAttributeTree"
 
 type LogListProps = {
   logs: TraceLog[]
@@ -188,7 +188,7 @@ const LogRow = memo(function LogRow({ log }: { log: TraceLog }) {
                   <p className="mb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                     Attributes
                   </p>
-                  <AttributeTree value={log.attributes} />
+                  <TraceAttributeTree value={log.attributes} />
                 </div>
               ) : (
                 <p className="text-[12px] text-muted-foreground">No attributes</p>

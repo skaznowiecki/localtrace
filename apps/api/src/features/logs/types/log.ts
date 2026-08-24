@@ -53,6 +53,7 @@ export type LogListFilters = {
   message?: string
   traceId?: string
   sinceNs?: bigint
+  untilNs?: bigint
   raw?: boolean
 }
 

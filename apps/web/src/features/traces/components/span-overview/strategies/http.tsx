@@ -33,7 +33,7 @@ function UrlLink({ href }: { href: string }) {
 
 function Subheading({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-3 mb-1 text-[12px] font-bold tracking-wide text-foreground uppercase">
+    <p className="mt-4 mb-1.5 text-[13px] font-bold text-foreground">
       {children}
     </p>
   )
@@ -43,39 +43,61 @@ function HttpRequestsBody({ meta }: { meta: HttpSpanMeta }) {
   return (
     <div className="pb-2 pl-5">
       {meta.method ? (
-        <KvRow label="Method" copyValue={meta.method}>
+        <KvRow
+          label="Method"
+          copyValue={meta.method}
+          fieldKey="http.method"
+        >
           <HttpMethodBadge method={meta.method} className="text-[12px]" />
         </KvRow>
       ) : null}
       {meta.statusCode ? (
-        <KvRow label="Status Code" copyValue={meta.statusCode}>
+        <KvRow
+          label="Status Code"
+          copyValue={meta.statusCode}
+          fieldKey="http.status_code"
+        >
           <HttpStatusCodeBadge code={meta.statusCode} className="text-[12px]" />
         </KvRow>
       ) : null}
       {meta.url ? (
-        <KvRow label="URL" copyValue={meta.url}>
+        <KvRow label="URL" copyValue={meta.url} fieldKey="http.url">
           <UrlLink href={meta.url} />
         </KvRow>
       ) : null}
       {meta.userAgent ? (
-        <KvRow label="User Agent">{meta.userAgent}</KvRow>
+        <KvRow label="User Agent" fieldKey="user_agent.original">
+          {meta.userAgent}
+        </KvRow>
       ) : null}
-      {meta.route ? <KvRow label="http.route">{meta.route}</KvRow> : null}
+      {meta.route ? (
+        <KvRow label="http.route" fieldKey="http.route">
+          {meta.route}
+        </KvRow>
+      ) : null}
       {meta.version ? (
-        <KvRow label="http.version">{meta.version}</KvRow>
+        <KvRow label="http.version" fieldKey="http.flavor">
+          {meta.version}
+        </KvRow>
       ) : null}
 
       {(meta.host || meta.path || meta.scheme) && (
         <>
           <Subheading>URL Details</Subheading>
-          {meta.host ? <KvRow label="HTTP Host">{meta.host}</KvRow> : null}
+          {meta.host ? (
+            <KvRow label="HTTP Host" fieldKey="http.host">
+              {meta.host}
+            </KvRow>
+          ) : null}
           {meta.path ? (
-            <KvRow label="HTTP Path" copyValue={meta.path}>
+            <KvRow label="HTTP Path" copyValue={meta.path} fieldKey="url.path">
               <HttpPath value={meta.path} className="font-sans" />
             </KvRow>
           ) : null}
           {meta.scheme ? (
-            <KvRow label="HTTP Scheme">{meta.scheme}</KvRow>
+            <KvRow label="HTTP Scheme" fieldKey="url.scheme">
+              {meta.scheme}
+            </KvRow>
           ) : null}
         </>
       )}

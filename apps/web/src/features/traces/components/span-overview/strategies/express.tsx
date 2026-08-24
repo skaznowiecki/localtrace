@@ -14,10 +14,20 @@ function ExpressOverview({ span }: { span: Span }) {
   return (
     <OverviewSection title="Express">
       <div className="pb-2 pl-5">
-        {kind ? <KvRow label="Type">{kind}</KvRow> : null}
-        {name ? <KvRow label="Name">{name}</KvRow> : null}
+        {kind ? (
+          <KvRow label="Type" fieldKey="express.type">
+            {kind}
+          </KvRow>
+        ) : null}
+        {name ? (
+          <KvRow label="Name" fieldKey="express.name">
+            {name}
+          </KvRow>
+        ) : null}
         {route && route !== name ? (
-          <KvRow label="Route">{route}</KvRow>
+          <KvRow label="Route" fieldKey="http.route">
+            {route}
+          </KvRow>
         ) : null}
       </div>
     </OverviewSection>

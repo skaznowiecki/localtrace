@@ -1,7 +1,7 @@
 import { useState } from "react"
 
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { AttributeTree, isAttributeTreeEmpty } from "@/features/traces"
+import { AttributeTree, isAttributeTreeEmpty } from "@/components/AttributeTree"
 import { cn } from "@/lib/utils"
 
 import { bodyToText } from "../../lib/severity"

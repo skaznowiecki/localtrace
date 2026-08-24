@@ -16,7 +16,7 @@ import {
 } from "../../lib/span-name-stats"
 import { resolveSpanVendor } from "../../lib/span-vendor"
 import type { Span } from "../../types"
-import { SpanVendorIcon } from "../display/brand-icons"
+import { SpanVendorIcon } from "@/components/brand-icons"
 import { SpanName } from "../span-name"
 
 type TraceSpanNameStatsProps = {
@@ -83,7 +83,10 @@ const StatRow = memo(function StatRow({
             />
           )}
           <span className="min-w-0 truncate text-[13px] text-foreground">
-            <SpanName name={stat.name} />
+            <SpanName
+              name={span?.name ?? stat.name}
+              attributes={span?.attributes}
+            />
           </span>
         </span>
       </TableCell>

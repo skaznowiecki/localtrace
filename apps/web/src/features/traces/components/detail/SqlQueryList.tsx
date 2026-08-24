@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils"
 
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll"
 import type { Span, TraceSqlQuery } from "../../types"
-import { highlightSql } from "../attribute-value/strategies/sql"
+import { highlightSql } from "@/components/attribute-value/strategies/sql"
 
 type SqlQueryListProps = {
   queries: TraceSqlQuery[]

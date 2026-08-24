@@ -1,72 +1,34 @@
 import type { Db } from "@shared/db"
-import { NotFoundError } from "@shared/errors"
-import { nsToRfc3339, overlayAttributes, readAttr } from "@shared/helpers"
-import { dbSystem, isSqlSystem, statementHit } from "../helpers/span-type"
-import * as repo from "../repositories/traces"
+import { requireTrace } from "../helpers/require-trace"
+import { extractTypedSpan } from "../helpers/span-extract"
 import type { SqlQueryDto } from "../types/dto"
-import type { SpanRecord } from "../types/span"
 
-function spanStatus(statusCode: number): string {
-  if (statusCode === 2) return "error"
-  if (statusCode === 1) return "ok"
-  return "unset"
-}
-
-function statementText(
-  attrs: ReturnType<typeof overlayAttributes>,
-  name: string,
+function payloadString(
+  payload: Record<string, unknown>,
+  key: string,
 ): string | null {
-  const hit = statementHit(attrs)?.value
-  if (hit) return hit
-  if (!isSqlSystem(dbSystem(attrs))) return null
-  const operation = readAttr(attrs, ["db.operation"])
-  if (operation && name && name.toUpperCase() !== operation.toUpperCase()) {
-    return `${operation} ${name}`
-  }
-  return operation || name || null
-}
-
-function query(
-  record: SpanRecord,
-  traceStartNs: bigint,
-): Omit<SqlQueryDto, "share"> | null {
-  const attrs = overlayAttributes(record.ingestProvider, record.attributes)
-  const system = dbSystem(attrs)
-  if (system && !isSqlSystem(system)) return null
-  const text = statementText(attrs, record.name)
-  if (!text) return null
-
-  const startOffsetNs =
-    record.startTimeNs > traceStartNs ? record.startTimeNs - traceStartNs : 0n
-
-  return {
-    span_id: record.spanId,
-    name: record.name,
-    statement: text,
-    duration_ms: Number(record.durationNs) / 1_000_000,
-    start_offset_ms: Number(startOffsetNs) / 1_000_000,
-    started_at: nsToRfc3339(record.startTimeNs),
-    db_system: system ?? null,
-    host:
-      readAttr(attrs, [
-        "server.address",
-        "peer.hostname",
-        "net.peer.name",
-        "peer.service",
-        "db.name",
-      ]) ?? null,
-    status: spanStatus(record.statusCode),
-  }
+  const value = payload[key]
+  if (value == null) return null
+  return String(value)
 }
 
 export async function execute(db: Db, traceId: string): Promise<SqlQueryDto[]> {
-  const result = await db.run((conn) => repo.get(conn, traceId))
-  if (!result) throw new NotFoundError(`trace ${traceId} not found`)
-
+  const result = await requireTrace(db, traceId)
   const entries: Omit<SqlQueryDto, "share">[] = []
   for (const record of result.spans) {
-    const entry = query(record, result.trace.startTimeNs)
-    if (entry) entries.push(entry)
+    const extracted = extractTypedSpan(record, result.trace.startTimeNs, "sql")
+    if (!extracted) continue
+    entries.push({
+      span_id: extracted.span_id,
+      name: extracted.name,
+      statement: payloadString(extracted.payload, "statement") ?? "",
+      duration_ms: extracted.duration_ms,
+      start_offset_ms: extracted.start_offset_ms,
+      started_at: payloadString(extracted.payload, "started_at"),
+      db_system: payloadString(extracted.payload, "db_system"),
+      host: payloadString(extracted.payload, "host"),
+      status: extracted.status,
+    })
   }
 
   entries.sort((a, b) => b.duration_ms - a.duration_ms)

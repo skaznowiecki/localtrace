@@ -131,7 +131,7 @@ npx @modelcontextprotocol/inspector http://127.0.0.1:4318/mcp
 | `get_trace` | Overview (default) or `detail=full` |
 | `get_span` | One span with attributes |
 | `get_trace_sql` | DB queries in a trace, sorted by duration |
-| `get_trace_spans` | Typed payloads: `sql` / `redis` / `mongo` / `prisma` / `http` / `express` / `s3` / `openrouter` / `error` |
+| `get_trace_spans` | Typed payloads: `sql` / `redis` / `mongo` / `prisma` / `http` / `express` / `s3` / `openrouter` / `trpc` / `error` |
 | `search_spans` | Cross-trace search (name/attributes, type, service) |
 | `get_trace_logs` | Logs correlated to a `trace_id` |
 | `list_log_facets` | Services and severity buckets for log filters |

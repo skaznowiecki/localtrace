@@ -7,10 +7,7 @@ import {
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import {
-  TraceLiveHeader,
-  TraceTimeRangeProvider,
-} from "@/features/traces"
+import { LiveHeader, TimeRangeProvider } from "@/features/time-range"
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -19,7 +16,7 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <TooltipProvider>
-      <TraceTimeRangeProvider>
+      <TimeRangeProvider>
         <div className="flex h-svh flex-col overflow-hidden">
           <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b px-4">
             <RouteSwitcher />
@@ -29,7 +26,7 @@ function RootLayout() {
             <Outlet />
           </main>
         </div>
-      </TraceTimeRangeProvider>
+      </TimeRangeProvider>
     </TooltipProvider>
   )
 }
@@ -45,7 +42,7 @@ function TracesHeaderActions() {
   ) {
     return null
   }
-  return <TraceLiveHeader />
+  return <LiveHeader />
 }
 
 function RouteSwitcher() {

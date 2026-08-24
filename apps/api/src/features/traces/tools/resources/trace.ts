@@ -25,10 +25,19 @@ export function register(server: McpServer, db: Db) {
           })),
         }
       },
+      complete: {
+        async id(value: string) {
+          const traces = await list(db, filters({ limit: 20 }))
+          const needle = value.toLowerCase()
+          return traces
+            .map((trace) => trace.id)
+            .filter((id) => id.startsWith(needle) || needle.length === 0)
+        },
+      },
     }),
     {
       title: "Trace",
-      description: "Full trace detail (same payload as get_trace). breakdown is exclusive time rolled up to Prisma ops, outbound HTTP, Redis, and SQL (remainder App); null means still processing.",
+      description: "Full span tree with attributes (same as get_trace detail=full). Prefer the get_trace tool for the compact overview.",
       mimeType: "application/json",
     },
     async (uri, { id }) => {
@@ -43,7 +52,7 @@ export function register(server: McpServer, db: Db) {
             {
               uri: uri.href,
               mimeType: "application/json",
-              text: JSON.stringify(detail, null, 2),
+              text: JSON.stringify(detail),
             },
           ],
         }

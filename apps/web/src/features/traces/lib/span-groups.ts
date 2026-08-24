@@ -1,4 +1,5 @@
 import type { Span, SpanGroupMeta, SpanTreeNode } from "../types"
+import { spanDisplayLabel } from "./span-display"
 
 export type SpanGroupNode = {
   kind: "group"
@@ -40,7 +41,7 @@ function buildGroupMeta(members: SpanTreeNode[], groupId: string): SpanGroupMeta
 
   return {
     groupId,
-    name: members[0]!.name,
+    name: spanDisplayLabel(members[0]!),
     members: members.map(toSpanSnapshot),
     count,
     totalDurationMs,
@@ -56,13 +57,14 @@ function makeGroupNode(members: SpanTreeNode[]): SpanGroupNode {
     ...members.map((m) => m.startOffsetMs + m.durationMs),
   )
   const parentId = first.parentId
-  const groupId = `group:${parentId ?? "root"}:${first.name}:${startOffsetMs}`
+  const label = spanDisplayLabel(first)
+  const groupId = `group:${parentId ?? "root"}:${label}:${startOffsetMs}`
   const hasError = members.some((m) => m.status === "error")
 
   return {
     kind: "group",
     id: groupId,
-    name: first.name,
+    name: label,
     parentId,
     service: first.service,
     status: hasError ? "error" : first.status,
@@ -76,7 +78,7 @@ function makeGroupNode(members: SpanTreeNode[]): SpanGroupNode {
 }
 
 /**
- * Run-length encode consecutive leaf siblings that share the same `name`.
+ * Run-length encode consecutive leaf siblings that share the same display label.
  * Groups of size ≥ 2 become `SpanGroupNode`; parents and singletons pass through.
  * Input must already be sorted by `startOffsetMs`.
  */
@@ -89,7 +91,8 @@ export function groupSiblingRuns(siblings: SpanTreeNode[]): SiblingItem[] {
   for (let index = 1; index <= siblings.length; index += 1) {
     const prev = siblings[runStart]!
     const atEnd = index === siblings.length
-    const nameChanged = !atEnd && siblings[index]!.name !== prev.name
+    const nameChanged =
+      !atEnd && spanDisplayLabel(siblings[index]!) !== spanDisplayLabel(prev)
 
     if (!atEnd && !nameChanged) continue
 

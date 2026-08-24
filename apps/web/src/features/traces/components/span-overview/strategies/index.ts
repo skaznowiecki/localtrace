@@ -8,6 +8,7 @@ import { prismaOverviewStrategy } from "./prisma"
 import { redisOverviewStrategy } from "./redis"
 import { s3OverviewStrategy } from "./s3"
 import { sqlOverviewStrategy } from "./sql"
+import { trpcOverviewStrategy } from "./trpc"
 
 /** First match wins — more specific strategies first. */
 export const spanOverviewStrategies: SpanOverviewStrategy[] = [
@@ -18,6 +19,7 @@ export const spanOverviewStrategies: SpanOverviewStrategy[] = [
   sqlOverviewStrategy,
   s3OverviewStrategy,
   openrouterOverviewStrategy,
+  trpcOverviewStrategy,
   expressOverviewStrategy,
   httpOverviewStrategy,
 ]

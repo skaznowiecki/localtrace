@@ -1,10 +1,6 @@
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+import type { JsonValue } from "@/lib/json"
+
+export type { JsonValue }
 
 export type LogListItem = {
   id: string

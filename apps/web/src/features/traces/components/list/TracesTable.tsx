@@ -3,6 +3,8 @@ import { AlertCircleIcon, PanelLeftIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SortableHead } from "@/components/ui/sortable-head"
 import {
   Table,
   TableBody,
@@ -11,16 +13,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useTimeRange } from "@/features/time-range"
 import { useLoadMoreOnScroll } from "@/lib/use-load-more"
 
 import { useTraceFacets } from "../../hooks/useTraceFacets"
 import { useTraceFilters } from "../../hooks/useTraceFilters"
 import { useTraceSort } from "../../hooks/useTraceSort"
-import { useTraceTimeRange } from "../../hooks/useTraceTimeRange"
 import { useTraces } from "../../hooks/useTraces"
 import { TraceDrawer } from "../detail/TraceDrawer"
-import { SortableHead } from "./SortableHead"
 import { TraceFacetPanel } from "./TraceFacetPanel"
 import { TraceFilterBar } from "./TraceFilterBar"
 import { TraceTableRow } from "./TraceTableRow"
@@ -74,7 +74,7 @@ export function TracesTable() {
   const { query, filters, setQuery, setFilter } = useTraceFilters()
   const { sort, order, setSort } = useTraceSort()
   const { facets, isLoading: facetsLoading } = useTraceFacets()
-  const { live, lookbackMs, pausedSince } = useTraceTimeRange()
+  const { live, lookbackMs, pausedSince } = useTimeRange()
   const [facetsOpen, setFacetsOpen] = useState(readFacetsOpen)
 
   useEffect(() => {
