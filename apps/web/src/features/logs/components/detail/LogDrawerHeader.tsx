@@ -9,6 +9,7 @@ import {
 import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 
+import { DebugWithAgent } from "@/components/DebugWithAgent"
 import { Button } from "@/components/ui/button"
 import { SheetClose, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import {
@@ -20,6 +21,7 @@ import { ServiceBadge } from "@/components/ServiceBadge"
 import { cn, formatRelativeTime, formatTraceDate } from "@/lib/utils"
 
 import type { LogListItem } from "../../types"
+import { bodyToText, severityLabel } from "../../lib/severity"
 import { SeverityBadge } from "../display/SeverityBadge"
 
 type LogDrawerHeaderProps = {
@@ -79,6 +81,16 @@ export function LogDrawerHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          <DebugWithAgent
+            target="log"
+            time={log.time}
+            service={log.service}
+            severity={severityLabel(log)}
+            message={bodyToText(log.body)}
+            logId={log.id}
+            traceId={log.traceId}
+            spanId={log.spanId}
+          />
           <Tooltip>
             <TooltipTrigger
               render={

@@ -109,7 +109,6 @@ import {
   siPhoenixframework,
   siPlanetscale,
   siPocketbase,
-  siPostgresql,
   siPosthog,
   siPrisma,
   siPrometheus,
@@ -161,6 +160,7 @@ export type Glyph = {
   title: string
   hex: string
   path: string
+  viewBox?: string
 }
 
 export type BrandDef = {
@@ -177,7 +177,12 @@ function glyph(icon: SimpleIcon): Glyph {
 
 function vendored(id: keyof typeof VENDORED_GLYPHS): Glyph {
   const g = VENDORED_GLYPHS[id]
-  return { title: g.title, hex: g.hex, path: g.path }
+  return {
+    title: g.title,
+    hex: g.hex,
+    path: g.path,
+    ...("viewBox" in g ? { viewBox: g.viewBox } : {}),
+  }
 }
 
 /**
@@ -187,7 +192,7 @@ function vendored(id: keyof typeof VENDORED_GLYPHS): Glyph {
  */
 export const BRANDS = {
   postgres: {
-    glyph: glyph(siPostgresql),
+    glyph: vendored("postgres"),
     aliases: [
       "postgres",
       "postgresql",
@@ -641,7 +646,7 @@ export const BRANDS = {
   },
   aiohttp: {
     glyph: glyph(siAiohttp),
-    aliases: ["aiohttp"],
+    aliases: ["aiohttp", "aiohttp_client", "aiohttp-client"],
     needles: ["aiohttp"],
   },
   kafka: {

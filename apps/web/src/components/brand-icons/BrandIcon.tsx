@@ -1,7 +1,11 @@
 import { cn } from "@/lib/utils"
 
 import { BRANDS, type SpanVendor } from "@/lib/brand-catalog"
+import { AiohttpIcon } from "./AiohttpIcon"
+import { LangchainIcon } from "./LangchainIcon"
+import { LanggraphIcon } from "./LanggraphIcon"
 import { MemcachedIcon } from "./MemcachedIcon"
+import { TrpcIcon } from "./TrpcIcon"
 
 type BrandIconProps = {
   brand: SpanVendor
@@ -21,13 +25,25 @@ export function BrandIcon({ brand, className }: BrandIconProps) {
   if (brand === "memcached") {
     return <MemcachedIcon className={className} />
   }
+  if (brand === "aiohttp") {
+    return <AiohttpIcon className={className} />
+  }
+  if (brand === "langchain") {
+    return <LangchainIcon className={className} />
+  }
+  if (brand === "langgraph") {
+    return <LanggraphIcon className={className} />
+  }
+  if (brand === "trpc") {
+    return <TrpcIcon className={className} />
+  }
 
   const { glyph } = BRANDS[brand]
   const invert = isDarkHex(glyph.hex)
 
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox={glyph.viewBox ?? "0 0 24 24"}
       role="img"
       aria-label={glyph.title}
       className={cn("size-4 shrink-0", className)}

@@ -1,3 +1,4 @@
+import { ClampedText } from "@/components/ui/clamped-text"
 import { Copyable } from "@/components/ui/copyable"
 
 import type { JsonValue } from "@/lib/json"
@@ -36,5 +37,9 @@ export function AttributeValue({ value }: AttributeValueProps) {
     content = strategy.render(str)
   }
 
-  return <Copyable value={clipboardText}>{content}</Copyable>
+  return (
+    <Copyable value={clipboardText} className="flex w-full min-w-0">
+      <ClampedText resetKey={clipboardText}>{content}</ClampedText>
+    </Copyable>
+  )
 }

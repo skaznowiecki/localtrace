@@ -55,7 +55,7 @@ function Row({
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 py-0.5 leading-7",
+        "flex items-start gap-1.5 py-0.5 leading-7",
         className,
       )}
     >
@@ -92,7 +92,7 @@ function JsonNode({
     return (
       <Row className="group/field">
         {actions ?? <Glyph />}
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           {keyName !== undefined ? (
             <>
               <KeyToken name={keyName} />{" "}
@@ -208,7 +208,7 @@ export function AttributeTree({
   return (
     <div
       className={cn(
-        "overflow-x-auto px-1 py-2 font-mono text-[13px]",
+        "min-w-0 overflow-x-auto px-1 py-2 font-mono text-[13px]",
         className,
       )}
     >

@@ -15,18 +15,17 @@ import { OverviewSection } from "../OverviewSection"
 
 function UrlLink({ href }: { href: string }) {
   const isAbsolute = /^https?:\/\//i.test(href)
-  if (!isAbsolute) {
-    return <HttpPath value={href} className="break-all font-sans" />
-  }
+  const path = <HttpPath value={href} wrap className="font-sans" />
+  if (!isAbsolute) return path
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="inline-flex cursor-pointer items-start gap-1 break-all text-inherit hover:underline"
+      className="cursor-pointer break-all text-inherit hover:underline"
     >
-      <HttpPath value={href} className="font-sans" />
-      <ExternalLinkIcon className="mt-0.5 size-3 shrink-0 text-sky-700 opacity-70 dark:text-sky-400" />
+      {path}
+      <ExternalLinkIcon className="ml-1 inline size-3 shrink-0 align-text-top text-sky-700 opacity-70 dark:text-sky-400" />
     </a>
   )
 }

@@ -14,6 +14,8 @@ export type HttpPathProps = {
   /** Path or full URL to render. */
   value: string
   className?: string
+  /** Wrap onto multiple lines instead of single-line ellipsis. */
+  wrap?: boolean
 }
 
 function splitUrl(raw: string): { origin: string | null; pathWithQuery: string } {
@@ -27,12 +29,16 @@ function splitUrl(raw: string): { origin: string | null; pathWithQuery: string }
   return { origin: null, pathWithQuery: raw }
 }
 
-export function HttpPath({ value, className }: HttpPathProps) {
+export function HttpPath({ value, className, wrap = false }: HttpPathProps) {
   const { origin, pathWithQuery } = splitUrl(value)
 
   return (
     <span
-      className={cn("min-w-0 truncate font-mono", className)}
+      className={cn(
+        "min-w-0 font-mono",
+        wrap ? "break-all whitespace-normal" : "truncate",
+        className,
+      )}
       title={value}
     >
       {origin ? (

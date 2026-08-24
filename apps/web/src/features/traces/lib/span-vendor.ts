@@ -54,6 +54,20 @@ function isNextJsSpan(span: Pick<Span, "scopeName" | "attributes">): boolean {
   return category?.trim().toLowerCase() === "nextjs"
 }
 
+/** Tracer / ingest library names — not the product the span is about. */
+function isTracerScope(scopeName: string): boolean {
+  const lower = scopeName.trim().toLowerCase()
+  if (
+    lower === "datadog" ||
+    lower === "ddtrace" ||
+    lower === "otel" ||
+    lower === "opentelemetry"
+  ) {
+    return true
+  }
+  return lower.includes("opentelemetry") || lower.includes("/otel")
+}
+
 /**
  * Resolve a known vendor for span branding.
  * First match wins — framework/ORM before generic db.system.
@@ -111,7 +125,7 @@ export function resolveSpanVendor(
     }
   }
 
-  if (span.scopeName) {
+  if (span.scopeName && !isTracerScope(span.scopeName)) {
     const fromScope = resolveBrandFromName(span.scopeName)
     if (fromScope) return fromScope
   }

@@ -58,6 +58,9 @@ const ORDER_SQL: Record<TraceSortOrder, string> = {
 }
 
 const ATTR_KEY_RE = /^[A-Za-z0-9_.-]+$/
+const ATTR_SCAN_LIMIT = 4000
+const ATTR_KEY_LIMIT = 200
+const ATTR_VALUE_LIMIT = 50
 
 function jsonExtractPaths(
   path: string,
@@ -467,6 +470,89 @@ export async function facets(conn: DbConn): Promise<TraceFacets> {
   }
 }
 
+export async function attrKeys(conn: DbConn): Promise<FacetValue[]> {
+  const rows = await conn.all(
+    `WITH recent AS (
+       SELECT attributes, resource_attributes
+       FROM spans
+       ORDER BY start_time_ns DESC
+       LIMIT ?
+     ),
+     leaves AS (
+       SELECT j.fullkey AS fullkey
+       FROM recent, json_tree(recent.attributes) AS j
+       WHERE json_valid(recent.attributes)
+         AND j.type NOT IN ('object', 'array')
+         AND typeof(j.key) = 'text'
+         AND instr(j.fullkey, '[') = 0
+       UNION ALL
+       SELECT j.fullkey
+       FROM recent, json_tree(recent.resource_attributes) AS j
+       WHERE json_valid(recent.resource_attributes)
+         AND j.type NOT IN ('object', 'array')
+         AND typeof(j.key) = 'text'
+         AND instr(j.fullkey, '[') = 0
+     )
+     SELECT
+       REPLACE(REPLACE(REPLACE(fullkey, '$.', ''), '$', ''), '"', '') AS attr_path,
+       count(*) AS n
+     FROM leaves
+     GROUP BY attr_path
+     ORDER BY n DESC, attr_path
+     LIMIT ?`,
+    [ATTR_SCAN_LIMIT, ATTR_KEY_LIMIT],
+  )
+
+  const keys: FacetValue[] = []
+  for (const row of rows) {
+    const path = String(row.attr_path ?? "")
+    if (!ATTR_KEY_RE.test(path)) continue
+    keys.push({ value: path, count: toNumber(row.n) })
+  }
+  return keys
+}
+
+export async function attrValues(
+  conn: DbConn,
+  key: string,
+): Promise<FacetValue[]> {
+  const paths = jsonExtractPaths(key)
+  if (!paths) return []
+
+  return counted(
+    conn,
+    `WITH recent AS (
+       SELECT trace_id, attributes, resource_attributes
+       FROM spans
+       ORDER BY start_time_ns DESC
+       LIMIT ?
+     ),
+     extracted AS (
+       SELECT trace_id, COALESCE(
+         json_extract(attributes, ?),
+         json_extract(attributes, ?),
+         json_extract(resource_attributes, ?),
+         json_extract(resource_attributes, ?)
+       ) AS raw
+       FROM recent
+     )
+     SELECT CAST(raw AS TEXT) AS value, count(DISTINCT trace_id) AS n
+     FROM extracted
+     WHERE raw IS NOT NULL AND CAST(raw AS TEXT) <> ''
+     GROUP BY value
+     ORDER BY n DESC, value
+     LIMIT ?`,
+    [
+      ATTR_SCAN_LIMIT,
+      paths.nested,
+      paths.flat,
+      paths.nested,
+      paths.flat,
+      ATTR_VALUE_LIMIT,
+    ],
+  )
+}
+
 export async function get(
   conn: DbConn,
   traceId: string,
@@ -714,8 +800,12 @@ export async function upsert(
   }
 }
 
-async function counted(conn: DbConn, sql: string): Promise<FacetValue[]> {
-  const rows = await conn.all(sql)
+async function counted(
+  conn: DbConn,
+  sql: string,
+  params?: SqlValue[],
+): Promise<FacetValue[]> {
+  const rows = await conn.all(sql, params)
   return rows.map((row) => ({
     value: String(row.value),
     count: toNumber(row.n),

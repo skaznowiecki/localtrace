@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { ClampedText } from "@/components/ui/clamped-text"
 import { Copyable } from "@/components/ui/copyable"
 import { cn } from "@/lib/utils"
 
@@ -41,9 +42,11 @@ export function KvRow({
       </span>
       <div className="min-w-0 break-all text-sky-700 dark:text-sky-400">
         {clipboard != null ? (
-          <Copyable value={clipboard}>{children}</Copyable>
+          <Copyable value={clipboard} className="flex w-full min-w-0">
+            <ClampedText resetKey={clipboard}>{children}</ClampedText>
+          </Copyable>
         ) : (
-          children
+          <ClampedText>{children}</ClampedText>
         )}
       </div>
     </div>

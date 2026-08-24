@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { AlertCircleIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, startTransition, useCallback, useMemo, useState } from "react"
 
 import { Skeleton } from "@/components/ui/skeleton"
@@ -109,13 +109,16 @@ const WaterfallRowView = memo(
       : row.isExpanded
     const namedSpan = row.laneSpans[0]
     const vendor = namedSpan ? resolveSpanVendor(namedSpan) : null
+    const isError = namedSpan?.status === "error"
 
     return (
       <div
         className={cn(
           WATERFALL_GRID,
           "border-b border-border/50 hover:bg-muted/30",
+          isError && "bg-destructive/5 hover:bg-destructive/10",
           rowSelected && "bg-muted/40",
+          rowSelected && isError && "bg-destructive/10",
         )}
       >
         <div className="flex items-center justify-center">
@@ -158,16 +161,24 @@ const WaterfallRowView = memo(
           {vendor ? (
             <SpanVendorIcon vendor={vendor} className="size-3.5" />
           ) : null}
+          {isError ? (
+            <AlertCircleIcon className="size-3.5 shrink-0 text-destructive" />
+          ) : null}
           {namedSpan ? (
             <button
               type="button"
-              className="min-w-0 cursor-pointer truncate text-left text-[11px] text-foreground"
+              className={cn(
+                "min-w-0 cursor-pointer truncate text-left text-[11px]",
+                isError
+                  ? "font-medium text-destructive"
+                  : "text-foreground",
+              )}
               onClick={() => onSelect(namedSpan)}
             >
               {namedSpan.group ? (
                 <span className="block truncate" title={namedSpan.group.name}>
                   {namedSpan.group.name}{" "}
-                  <span className="text-muted-foreground">
+                  <span className={isError ? "text-destructive/70" : "text-muted-foreground"}>
                     ×{namedSpan.group.count}
                   </span>
                 </span>

@@ -1,3 +1,4 @@
+import { AlertCircleIcon } from "lucide-react"
 import { memo } from "react"
 
 import {
@@ -9,15 +10,20 @@ import { cn, formatSpanDuration } from "@/lib/utils"
 
 import { extractHttpSpanMeta, isHttpSpan } from "../../lib/http-spans"
 import { spanDisplayLabel } from "../../lib/span-display"
+import { extractSpanError } from "../../lib/span-error"
 import { resolveSpanVendor } from "../../lib/span-vendor"
 import { getSpanColor } from "@/lib/service-colors"
-import type { FlatSpanRow } from "../../types"
+import type { FlatSpanRow, Span } from "../../types"
 import { SpanVendorIcon } from "@/components/brand-icons"
 
 const SHORT_BAR_PCT = 8
 
 function isShortBar(widthPct: number): boolean {
   return widthPct < SHORT_BAR_PCT
+}
+
+function errorTooltipMessage(span: Pick<Span, "status" | "statusMessage" | "attributes" | "events">): string | null {
+  return extractSpanError(span)?.message ?? span.statusMessage
 }
 
 type WaterfallSpanBarProps = {
@@ -47,10 +53,17 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
     ? `${span.group!.name} ×${span.group!.count}`
     : spanDisplayLabel(span)
 
-  const barColor =
-    span.status === "error"
-      ? "var(--destructive)"
-      : getSpanColor(span.service, label)
+  const isError = span.status === "error"
+  const barColor = isError
+    ? "var(--destructive)"
+    : getSpanColor(span.service, label)
+  const errorMessage = (() => {
+    if (span.group) {
+      const member = span.group.members.find((item) => item.status === "error")
+      return member ? errorTooltipMessage(member) : null
+    }
+    return errorTooltipMessage(span)
+  })()
 
   const tooltipTarget = (() => {
     if (isGroup || !isHttpSpan(span)) return null
@@ -109,32 +122,43 @@ export const WaterfallSpanBar = memo(function WaterfallSpanBar({
       <TooltipContent
         side="top"
         align="start"
-        className="max-h-40 max-w-xs flex-col items-stretch gap-1 overflow-hidden px-3 py-2"
+        className="max-h-40 max-w-xs flex-col items-stretch gap-1 overflow-hidden bg-neutral-100 px-3 py-2 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-50"
       >
         <p className="flex min-w-0 items-center gap-1.5 font-medium">
           {vendor ? (
             <SpanVendorIcon vendor={vendor} className="size-3.5 shrink-0" />
           ) : null}
+          {isError ? (
+            <AlertCircleIcon className="size-3.5 shrink-0 text-destructive" />
+          ) : null}
           <span className="min-w-0 truncate">{label}</span>
         </p>
         {tooltipTarget && tooltipTarget !== label ? (
-          <p className="line-clamp-2 break-all text-background/80">
+          <p className="line-clamp-2 break-all text-neutral-500 dark:text-neutral-400">
             {tooltipTarget}
           </p>
         ) : null}
-        <p className="truncate text-background/80">{span.service}</p>
+        <p className="truncate text-neutral-500 dark:text-neutral-400">
+          {span.service}
+        </p>
         {isGroup && statsLabel ? (
-          <p className="font-mono tabular-nums text-background/80">
+          <p className="font-mono tabular-nums text-neutral-500 dark:text-neutral-400">
             {statsLabel}
           </p>
         ) : (
-          <p className="font-mono tabular-nums text-background/80">
+          <p className="font-mono tabular-nums text-neutral-500 dark:text-neutral-400">
             offset {formatSpanDuration(span.startOffsetMs)} · duration{" "}
             {formatSpanDuration(span.durationMs)}
           </p>
         )}
-        {span.statusMessage ? (
-          <p className="line-clamp-2 text-background/80">{span.statusMessage}</p>
+        {isError ? (
+          <p className="line-clamp-3 text-destructive">
+            {errorMessage ?? "Error"}
+          </p>
+        ) : span.statusMessage ? (
+          <p className="line-clamp-2 text-neutral-500 dark:text-neutral-400">
+            {span.statusMessage}
+          </p>
         ) : null}
       </TooltipContent>
     </Tooltip>

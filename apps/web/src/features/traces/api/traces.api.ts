@@ -120,6 +120,11 @@ export type TraceFacets = {
   durations: FacetValue[]
 }
 
+type ApiAttrList = {
+  keys?: ApiFacetValue[]
+  values?: ApiFacetValue[]
+}
+
 function toTraceStatus(status: string): TraceStatus {
   if (status === "error") return "error"
   if (status === "ok") return "ok"
@@ -242,6 +247,19 @@ export async function fetchTraceFacets(): Promise<TraceFacets> {
   }
 }
 
+export async function fetchAttrKeys(): Promise<FacetValue[]> {
+  const response = await fetch("/api/traces/attr-keys")
+  const body = await parseJson<ApiAttrList>(response)
+  return body.keys ?? []
+}
+
+export async function fetchAttrValues(key: string): Promise<FacetValue[]> {
+  const params = new URLSearchParams({ key })
+  const response = await fetch(`/api/traces/attr-values?${params.toString()}`)
+  const body = await parseJson<ApiAttrList>(response)
+  return body.values ?? []
+}
+
 export async function fetchTraceDetail(traceId: string): Promise<TraceDetail> {
   const response = await fetch(`/api/traces/${encodeURIComponent(traceId)}`)
   const detail = await parseJson<ApiTraceDetail>(response)
@@ -296,6 +314,8 @@ export const traceKeys = {
       },
     ] as const,
   facets: () => [...traceKeys.all, "facets"] as const,
+  attrKeys: () => [...traceKeys.all, "attr-keys"] as const,
+  attrValues: (key: string) => [...traceKeys.all, "attr-values", key] as const,
   details: () => [...traceKeys.all, "detail"] as const,
   detail: (traceId: string) => [...traceKeys.details(), traceId] as const,
   logs: (traceId: string) => [...traceKeys.all, "logs", traceId] as const,
@@ -331,6 +351,23 @@ export function traceFacetsQuery() {
     queryKey: traceKeys.facets(),
     queryFn: () => fetchTraceFacets(),
     // Facets change slowly relative to the trace list.
+    staleTime: 30_000,
+  })
+}
+
+export function attrKeysQuery() {
+  return queryOptions({
+    queryKey: traceKeys.attrKeys(),
+    queryFn: () => fetchAttrKeys(),
+    staleTime: 30_000,
+  })
+}
+
+export function attrValuesQuery(key: string | null) {
+  return queryOptions({
+    queryKey: traceKeys.attrValues(key ?? ""),
+    queryFn: () => fetchAttrValues(key!),
+    enabled: key != null && key.length > 0,
     staleTime: 30_000,
   })
 }

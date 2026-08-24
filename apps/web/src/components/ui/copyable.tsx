@@ -48,7 +48,7 @@ export function Copyable({
         className,
       )}
     >
-      <span className="min-w-0">{children}</span>
+      <span className="min-w-0 flex-1 break-all">{children}</span>
       <Tooltip>
         <TooltipTrigger
           render={

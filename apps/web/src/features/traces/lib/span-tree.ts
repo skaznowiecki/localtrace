@@ -4,7 +4,7 @@ import {
   type SiblingItem,
   type SpanGroupNode,
 } from "./span-groups"
-import type { FlatSpanRow, Span, SpanTreeNode, WaterfallRow } from "../types"
+import type { FlatSpanRow, Span, SpanTreeNode, TraceLog, TraceSqlQuery, WaterfallRow } from "../types"
 
 export function buildSpanTree(spans: Span[]): SpanTreeNode[] {
   const nodes = new Map<string, SpanTreeNode>()
@@ -205,4 +205,52 @@ export function getTraceDurationMs(spans: Span[]): number {
     (max, span) => Math.max(max, span.startOffsetMs + span.durationMs),
     0,
   )
+}
+
+/** The span and every descendant in the tree. */
+export function spanSubtreeIds(spans: Span[], spanId: string): Set<string> {
+  const childrenByParent = new Map<string, string[]>()
+  for (const span of spans) {
+    if (!span.parentId) continue
+    const siblings = childrenByParent.get(span.parentId)
+    if (siblings) siblings.push(span.id)
+    else childrenByParent.set(span.parentId, [span.id])
+  }
+
+  const ids = new Set<string>()
+  const stack = [spanId]
+  while (stack.length > 0) {
+    const id = stack.pop()
+    if (!id || ids.has(id)) continue
+    ids.add(id)
+    const children = childrenByParent.get(id)
+    if (children) stack.push(...children)
+  }
+  return ids
+}
+
+export function logsInSpanSubtree(
+  logs: TraceLog[],
+  spans: Span[],
+  spanId: string | null,
+): TraceLog[] {
+  if (!spanId) return logs
+  const ids = spanSubtreeIds(spans, spanId)
+  return logs.filter((log) => log.spanId != null && ids.has(log.spanId))
+}
+
+export function queriesOverlappingSpan(
+  queries: TraceSqlQuery[],
+  spans: Span[],
+  spanId: string | null,
+): TraceSqlQuery[] {
+  if (!spanId) return queries
+  const span = spans.find((item) => item.id === spanId)
+  if (!span) return []
+  const start = span.startOffsetMs
+  const end = start + span.durationMs
+  return queries.filter((query) => {
+    const queryEnd = query.startOffsetMs + query.durationMs
+    return query.startOffsetMs < end && queryEnd > start
+  })
 }

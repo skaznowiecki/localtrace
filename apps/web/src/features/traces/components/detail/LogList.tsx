@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll"
+import { logsInSpanSubtree } from "../../lib/span-tree"
 import type { JsonValue, Span, TraceLog } from "../../types"
 import { TraceAttributeTree, isAttributeTreeEmpty } from "./TraceAttributeTree"
 
@@ -222,10 +223,10 @@ export function LogList({
     return spanById.get(spanFilter)?.name ?? spanFilter
   }, [spanById, spanFilter])
 
-  const spanFiltered = useMemo(() => {
-    if (!spanFilter) return logs
-    return logs.filter((log) => log.spanId === spanFilter)
-  }, [logs, spanFilter])
+  const spanFiltered = useMemo(
+    () => logsInSpanSubtree(logs, spans, spanFilter),
+    [logs, spans, spanFilter],
+  )
 
   const filtered = useMemo(() => {
     if (!needle) return spanFiltered

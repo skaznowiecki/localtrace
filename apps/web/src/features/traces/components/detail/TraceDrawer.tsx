@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { useTraceDetail } from "../../hooks/useTraceDetail"
 import { useTraceLogs } from "../../hooks/useTraceLogs"
 import { useTraceSql } from "../../hooks/useTraceSql"
+import { firstErrorHint } from "../../lib/span-error"
 import { TraceDrawerHeader } from "./TraceDrawerHeader"
 import { TraceWaterfall } from "./TraceWaterfall"
 
@@ -56,6 +57,7 @@ export function TraceDrawer({ traceId, onOpenChange }: TraceDrawerProps) {
               trace={detail.trace}
               fullscreen={fullscreen}
               onFullscreenChange={setFullscreen}
+              errorHint={firstErrorHint(detail.spans)}
             />
 
             <TraceWaterfall

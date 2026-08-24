@@ -36,6 +36,14 @@ export type TraceFacetsDto = {
   durations: FacetValueDto[]
 }
 
+export type AttrKeysDto = {
+  keys: FacetValueDto[]
+}
+
+export type AttrValuesDto = {
+  values: FacetValueDto[]
+}
+
 export type SpanDto = {
   id: string
   parent_id: string | null

@@ -1,5 +1,5 @@
-import { ChevronDownIcon } from "lucide-react"
-import { useEffect, useState, type ReactNode } from "react"
+import { AlertCircleIcon, ChevronDownIcon } from "lucide-react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import {
   Collapsible,
@@ -11,6 +11,8 @@ import { formatSpanDuration } from "@/lib/utils"
 
 import { extractHttpSpanMeta, isHttpSpan } from "../../lib/http-spans"
 import { extractTrpcSpanMeta, isTrpcSpan } from "../../lib/trpc-spans"
+import { extractSpanError } from "../../lib/span-error"
+import { logsInSpanSubtree, queriesOverlappingSpan } from "../../lib/span-tree"
 import { resolveSpanVendor } from "../../lib/span-vendor"
 import type { Span, TraceLog, TraceSqlQuery } from "../../types"
 import { SpanVendorIcon } from "@/components/brand-icons"
@@ -21,6 +23,7 @@ import { TrpcTypeBadge } from "../display/TrpcTypeBadge"
 import { resolveSpanOverview } from "../span-overview"
 import { TraceAttributeTree, isAttributeTreeEmpty } from "./TraceAttributeTree"
 import { LogList } from "./LogList"
+import { SpanErrorPanel } from "./SpanErrorPanel"
 import { SqlQueryList } from "./SqlQueryList"
 
 export type SpanDetailsTab = "overview" | "sql-queries" | "logs"
@@ -95,6 +98,7 @@ function SpanDetailsHeader({ span }: { span: Span }) {
   const http = isHttpSpan(span) ? extractHttpSpanMeta(span) : null
   const trpc = isTrpcSpan(span) ? extractTrpcSpanMeta(span) : null
   const vendor = resolveSpanVendor(span)
+  const error = extractSpanError(span)
   const title =
     http?.route ??
     (http?.method && span.name.startsWith(`${http.method} `)
@@ -133,6 +137,12 @@ function SpanDetailsHeader({ span }: { span: Span }) {
           {formatSpanDuration(span.durationMs)}
         </p>
       </div>
+      {error?.message ? (
+        <p className="mt-2 flex items-start gap-1.5 text-[13px] text-destructive">
+          <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0" />
+          <span className="min-w-0 wrap-break-word">{error.message}</span>
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -157,6 +167,22 @@ export function TraceSpanDetails({
 }: TraceSpanDetailsProps) {
   const overview = resolveSpanOverview(span)
   const collapseAttributes = overview !== null
+  const visibleLogCount = useMemo(
+    () => logsInSpanSubtree(logs, spans, logSpanFilter).length,
+    [logs, spans, logSpanFilter],
+  )
+  const visibleSqlCount = useMemo(
+    () => queriesOverlappingSpan(sqlQueries, spans, sqlSpanFilter).length,
+    [sqlQueries, spans, sqlSpanFilter],
+  )
+
+  useEffect(() => {
+    if (activeTab === "logs" && visibleLogCount === 0) {
+      onTabChange("overview")
+    } else if (activeTab === "sql-queries" && visibleSqlCount === 0) {
+      onTabChange("overview")
+    }
+  }, [activeTab, visibleLogCount, visibleSqlCount, onTabChange])
 
   return (
     <div className="flex h-full min-h-0 flex-col border-t bg-background">
@@ -186,30 +212,33 @@ export function TraceSpanDetails({
             </TabsTrigger>
             <TabsTrigger
               value="sql-queries"
-              className="relative z-10 cursor-pointer rounded-none border-0 border-b-2 border-transparent! px-0 pt-2 pb-2.5 after:hidden data-active:border-foreground!"
+              disabled={visibleSqlCount === 0}
+              className="relative z-10 rounded-none border-0 border-b-2 border-transparent! px-0 pt-2 pb-2.5 after:hidden data-active:border-foreground! enabled:cursor-pointer"
             >
               DB Queries
-              {sqlQueries.length > 0 ? (
-                <span className="ml-1 text-muted-foreground">
-                  ({sqlQueries.length})
-                </span>
-              ) : null}
+              <span className="ml-1 text-muted-foreground">
+                ({visibleSqlCount})
+              </span>
             </TabsTrigger>
             <TabsTrigger
               value="logs"
-              disabled={logs.length === 0}
+              disabled={visibleLogCount === 0}
               className="relative z-10 rounded-none border-0 border-b-2 border-transparent! px-0 pt-2 pb-2.5 after:hidden data-active:border-foreground! enabled:cursor-pointer"
             >
               Logs
-              <span className="ml-1 text-muted-foreground">({logs.length})</span>
+              <span className="ml-1 text-muted-foreground">
+                ({visibleLogCount})
+              </span>
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent
           value="overview"
-          className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4"
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-2 pb-4"
         >
+          <SpanErrorPanel span={span} />
+
           {overview ? overview.render(span) : null}
 
           <MetaSection

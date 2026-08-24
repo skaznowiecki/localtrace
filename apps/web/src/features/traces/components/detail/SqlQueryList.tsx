@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll"
+import { queriesOverlappingSpan } from "../../lib/span-tree"
 import type { Span, TraceSqlQuery } from "../../types"
 import { highlightSql } from "@/components/attribute-value/strategies/sql"
 
@@ -222,25 +223,10 @@ export function SqlQueryList({
     return spanById.get(spanFilter)?.name ?? spanFilter
   }, [spanById, spanFilter])
 
-  const spanWindow = useMemo(() => {
-    if (!spanFilter) return null
-    const span = spanById.get(spanFilter)
-    if (!span) return null
-    return {
-      start: span.startOffsetMs,
-      end: span.startOffsetMs + span.durationMs,
-    }
-  }, [spanById, spanFilter])
-
-  const spanFiltered = useMemo(() => {
-    if (!spanWindow) return queries
-    // A query belongs to the span when its time range overlaps the span's.
-    return queries.filter((query) => {
-      const queryStart = query.startOffsetMs
-      const queryEnd = query.startOffsetMs + query.durationMs
-      return queryStart < spanWindow.end && queryEnd > spanWindow.start
-    })
-  }, [queries, spanWindow])
+  const spanFiltered = useMemo(
+    () => queriesOverlappingSpan(queries, spans, spanFilter),
+    [queries, spans, spanFilter],
+  )
 
   const filtered = useMemo(() => {
     if (!needle) return spanFiltered

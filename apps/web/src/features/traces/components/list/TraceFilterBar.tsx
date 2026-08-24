@@ -21,8 +21,11 @@ import {
 import { cn } from "@/lib/utils"
 
 import type { FacetValue, TraceFacets } from "../../api/traces.api"
+import { useAttrKeys, useAttrValues } from "../../hooks/useAttrFacets"
 import { resolveBrandFromName } from "../../lib/span-vendor"
 import {
+  formatAttrToken,
+  parseAttrToken,
   replaceDraftLastToken,
   splitDraftLastToken,
   splitQueryTokens,
@@ -100,21 +103,86 @@ function valueSuggestions(
   }
 }
 
-function keySuggestions(needle: string): Suggestion[] {
-  if (needle.startsWith("@") || needle.startsWith("-@")) return []
+function parseAttrDraftKey(
+  key: string,
+): { exclude: boolean; path: string } | null {
+  const exclude = key.startsWith("-@")
+  const body = exclude ? key.slice(1) : key
+  if (!body.startsWith("@")) return null
+  return { exclude, path: body.slice(1) }
+}
+
+function attrKeySuggestions(
+  attr: { exclude: boolean; path: string },
+  keys: FacetValue[],
+): Suggestion[] {
+  const lower = attr.path.toLowerCase()
+  const prefix = attr.exclude ? "-@" : "@"
+  return keys
+    .filter((item) => !lower || item.value.toLowerCase().includes(lower))
+    .slice(0, 50)
+    .map((item) => ({
+      id: `${prefix}${item.value}`,
+      label: `${prefix}${item.value}:`,
+      description: `${item.count} ${item.count === 1 ? "span" : "spans"}`,
+      insert: `${prefix}${item.value}:`,
+    }))
+}
+
+function attrValueSuggestions(
+  attr: { exclude: boolean; path: string },
+  values: FacetValue[],
+  needle: string,
+): Suggestion[] {
   const lower = needle.toLowerCase()
-  return TRACE_FILTER_KEYS.filter(
-    (facet) =>
-      !lower ||
-      facet.key.includes(lower) ||
-      facet.label.includes(lower) ||
-      facet.description.toLowerCase().includes(lower),
-  ).map((facet) => ({
-    id: facet.key,
-    label: `${facet.key}:`,
-    description: facet.description,
-    insert: `${facet.key}:`,
-  }))
+  const suggestions = values
+    .filter((item) => !lower || item.value.toLowerCase().includes(lower))
+    .map((item) => ({
+      id: `${attr.exclude ? "-@" : "@"}${attr.path}:${item.value}`,
+      label: item.value,
+      description: `${item.count} ${item.count === 1 ? "trace" : "traces"}`,
+      insert: formatAttrToken(attr.path, item.value, attr.exclude),
+    }))
+  if (needle.trim() && !suggestions.some((item) => item.label === needle)) {
+    suggestions.unshift({
+      id: `attr-custom:${needle}`,
+      label: needle,
+      description: "Exact attribute match",
+      insert: formatAttrToken(attr.path, needle, attr.exclude),
+    })
+  }
+  return suggestions
+}
+
+function keySuggestions(needle: string, attrKeys: FacetValue[]): Suggestion[] {
+  const attr = parseAttrDraftKey(needle)
+  if (attr) return attrKeySuggestions(attr, attrKeys)
+
+  const lower = needle.toLowerCase()
+  const suggestions: Suggestion[] = []
+  if (!lower) {
+    suggestions.push({
+      id: "@",
+      label: "@",
+      description: "Span or resource attribute",
+      insert: "@",
+    })
+  }
+  suggestions.push(
+    ...TRACE_FILTER_KEYS.filter(
+      (facet) =>
+        !lower ||
+        facet.key.includes(lower) ||
+        facet.label.includes(lower) ||
+        facet.description.toLowerCase().includes(lower),
+    ).map((facet) => ({
+      id: facet.key,
+      label: `${facet.key}:`,
+      description: facet.description,
+      insert: `${facet.key}:`,
+    })),
+  )
+  return suggestions
 }
 
 /** Interpret the in-progress draft (a single token) as key vs value phase. */
@@ -271,6 +339,36 @@ function joinQuery(chips: string[], draft: string): string {
     .join(" ")
 }
 
+function isAttrKey(key: string): boolean {
+  return key.startsWith("@") || key.startsWith("-@")
+}
+
+/** Syntax-colored draft so `@http.url:…` looks like a chip while typing/selecting. */
+function DraftHighlight({ draft }: { draft: string }) {
+  const colon = draft.indexOf(":")
+  const key = colon === -1 ? draft : draft.slice(0, colon)
+  const value = colon === -1 ? null : draft.slice(colon + 1)
+  const exclude = key.startsWith("-@")
+  const attr = isAttrKey(key)
+  const color = chipColor(attr ? (exclude ? key.slice(1) : key) : key, value, exclude)
+  const displayKey = attr ? key.replace(/^-?@/, "") : key
+  return (
+    <span className="flex min-w-0 items-center overflow-hidden whitespace-pre">
+      <span className={color.key}>
+        {exclude ? <span className="opacity-70">-</span> : null}
+        {attr ? <span className="opacity-60">@</span> : null}
+        {displayKey}
+      </span>
+      {value !== null ? (
+        <>
+          <span className={cn(color.key, "opacity-60")}>:</span>
+          <span className={cn("font-medium", color.value)}>{value}</span>
+        </>
+      ) : null}
+    </span>
+  )
+}
+
 function FilterBrandIcon({
   name,
   className,
@@ -371,13 +469,28 @@ export function TraceFilterBar({
     [onQueryChange],
   )
 
-  // External query change (e.g. back/forward navigation) → rebuild chips.
+  // External query change (e.g. Filter by… / back-forward) → rebuild chips.
   useEffect(() => {
     const trimmed = query.trim()
-    if (trimmed === lastEmitted.current) return
+    const tokens = splitQueryTokens(query)
+    if (trimmed === lastEmitted.current) {
+      // Same query we already know, but FieldActions can leave a complete
+      // `@attr:value` sitting in the draft. Chip it once the input isn't focused.
+      const inputFocused = document.activeElement === inputRef.current
+      if (
+        !inputFocused &&
+        tokens.some((token) => parseAttrToken(token) != null)
+      ) {
+        setChips(tokens)
+        setDraft("")
+        setOpen(false)
+      }
+      return
+    }
     lastEmitted.current = trimmed
-    setChips(splitQueryTokens(query))
+    setChips(tokens)
     setDraft("")
+    setOpen(false)
   }, [query])
 
   // Debounce free-text typing so `name:` filters update the list as you type.
@@ -390,11 +503,21 @@ export function TraceFilterBar({
 
   const draftToken = useMemo(() => splitDraftLastToken(draft).token, [draft])
   const active = useMemo(() => activePhase(draftToken), [draftToken])
+  const attrDraft = parseAttrDraftKey(active.key)
+  const { keys: attrKeys, isLoading: attrKeysLoading } = useAttrKeys()
+  const { values: attrValues, isLoading: attrValuesLoading } = useAttrValues(
+    attrDraft && active.phase === "value" ? attrDraft.path : null,
+  )
 
   const suggestions = useMemo(() => {
     const selected = new Set(chips.map((chip) => chip.toLowerCase()))
     if (active.phase === "key") {
-      return keySuggestions(active.key)
+      return keySuggestions(active.key, attrKeys)
+    }
+    if (attrDraft) {
+      return attrValueSuggestions(attrDraft, attrValues, active.value).filter(
+        (suggestion) => !selected.has(suggestion.insert.toLowerCase()),
+      )
     }
     const normalizedKey =
       TRACE_FILTER_KEYS.find(
@@ -403,7 +526,7 @@ export function TraceFilterBar({
     return valueSuggestions(normalizedKey, facets, active.value).filter(
       (suggestion) => !selected.has(suggestion.insert.toLowerCase()),
     )
-  }, [active, chips, facets])
+  }, [active, attrDraft, attrKeys, attrValues, chips, facets])
 
   useEffect(() => {
     setHighlight(0)
@@ -645,40 +768,53 @@ export function TraceFilterBar({
                   onRemove={() => removeChip(index)}
                 />
               ))}
-              <input
-                ref={inputRef}
-                role="combobox"
-                aria-expanded={open}
-                aria-controls={listId}
-                aria-autocomplete="list"
-                aria-activedescendant={
-                  open && suggestions[highlight]
-                    ? `${listId}-${suggestions[highlight]!.id}`
-                    : undefined
-                }
-                value={draft}
-                placeholder={
-                  chips.length === 0
-                    ? "Filter traces — e.g. service:api status:error method:GET"
-                    : ""
-                }
-                className="h-7 min-w-28 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground"
-                onFocus={requestOpen}
-                onKeyDown={onKeyDown}
-                onChange={(event) => {
-                  allowAutoOpen()
-                  setDraft(event.target.value)
-                  requestOpen()
-                }}
-                onBlur={() => {
-                  // Delay so suggestion clicks fire first.
-                  window.setTimeout(() => {
-                    if (active.phase === "value" && active.value.trim()) {
-                      commitToken(draft)
-                    }
-                  }, 120)
-                }}
-              />
+              <div className="relative min-w-28 flex-1">
+                {draft ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 flex h-7 items-center overflow-hidden font-mono text-sm leading-7"
+                  >
+                    <DraftHighlight draft={draft} />
+                  </div>
+                ) : null}
+                <input
+                  ref={inputRef}
+                  role="combobox"
+                  aria-expanded={open}
+                  aria-controls={listId}
+                  aria-autocomplete="list"
+                  aria-activedescendant={
+                    open && suggestions[highlight]
+                      ? `${listId}-${suggestions[highlight]!.id}`
+                      : undefined
+                  }
+                  value={draft}
+                  placeholder={
+                    chips.length === 0
+                      ? "Filter traces — e.g. service:api @http.method:GET status:error"
+                      : ""
+                  }
+                  className={cn(
+                    "relative h-7 w-full min-w-28 bg-transparent font-mono text-sm leading-7 outline-none caret-foreground placeholder:text-muted-foreground",
+                    draft && "text-transparent",
+                  )}
+                  onFocus={requestOpen}
+                  onKeyDown={onKeyDown}
+                  onChange={(event) => {
+                    allowAutoOpen()
+                    setDraft(event.target.value)
+                    requestOpen()
+                  }}
+                  onBlur={() => {
+                    // Delay so suggestion clicks fire first.
+                    window.setTimeout(() => {
+                      if (active.phase === "value" && active.value.trim()) {
+                        commitToken(draft)
+                      }
+                    }, 120)
+                  }}
+                />
+              </div>
               {hasContent ? (
                 <Button
                   type="button"
@@ -704,7 +840,7 @@ export function TraceFilterBar({
           align="start"
           side="bottom"
           sideOffset={6}
-          className="w-72 max-w-[calc(100vw-2rem)] gap-1 p-1.5"
+          className="w-96 max-w-[calc(100vw-2rem)] gap-1 p-1.5"
           initialFocus={false}
           data-trace-filter-suggestions={listId}
         >
@@ -716,11 +852,32 @@ export function TraceFilterBar({
           </PopoverHeader>
 
           {suggestions.length === 0 ? (
-            <p className="px-2.5 py-2 text-xs text-muted-foreground">
-              {active.phase === "key"
-                ? "Type a filter key (service, status, method…)"
-                : "No matching values"}
-            </p>
+            <div className="rounded-xl bg-muted/70 px-2.5 py-2">
+              <p className="text-xs font-medium text-foreground">
+                {attrDraft
+                  ? active.phase === "key"
+                    ? attrKeysLoading
+                      ? "Loading attributes…"
+                      : "No matching attributes"
+                    : attrValuesLoading
+                      ? "Loading values…"
+                      : "No matching values"
+                  : active.phase === "key"
+                    ? "Type a filter key"
+                    : "No matching values"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {attrDraft
+                  ? active.phase === "key"
+                    ? "Try @http.method, @db.system, @service.name…"
+                    : active.value
+                      ? `No values match “${active.value}”.`
+                      : "Type a value or pick one from recent spans."
+                  : active.phase === "key"
+                    ? "Try service, status, method, @attribute…"
+                    : `No facet values match “${active.value}”.`}
+              </p>
+            </div>
           ) : (
             <ul
               id={listId}
@@ -744,17 +901,20 @@ export function TraceFilterBar({
                     onMouseEnter={() => setHighlight(index)}
                     onClick={() => applySuggestion(suggestion)}
                   >
-                    <span className="flex min-w-0 items-center gap-1.5 font-mono font-medium">
+                    <span className="flex shrink-0 items-center gap-1.5 font-mono font-medium">
                       {suggestion.insert.startsWith("service:") ? (
                         <FilterBrandIcon
                           name={suggestion.label}
                           className="size-3.5"
                         />
                       ) : null}
-                      {suggestion.label}
+                      <span>{suggestion.label}</span>
                     </span>
                     {suggestion.description ? (
-                      <span className="truncate text-[11px] text-muted-foreground">
+                      <span
+                        className="min-w-0 flex-1 truncate text-right text-[11px] text-muted-foreground"
+                        title={suggestion.description}
+                      >
                         {suggestion.description}
                       </span>
                     ) : null}

@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 
+import { DebugWithAgent } from "@/components/DebugWithAgent"
 import { Button } from "@/components/ui/button"
 import { SheetClose, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import {
@@ -37,6 +38,7 @@ type TraceDrawerHeaderProps = {
   trace: TraceListItem
   fullscreen: boolean
   onFullscreenChange: (fullscreen: boolean) => void
+  errorHint?: string | null
 }
 
 function statusAccentClass(status: TraceStatus): string {
@@ -67,6 +69,7 @@ export function TraceDrawerHeader({
   trace,
   fullscreen,
   onFullscreenChange,
+  errorHint,
 }: TraceDrawerHeaderProps) {
   const [copied, setCopied] = useState(false)
   const brand = resolveBrandFromName(trace.rootService)
@@ -134,6 +137,19 @@ export function TraceDrawerHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          <DebugWithAgent
+            target="trace"
+            traceId={trace.id}
+            service={trace.rootService}
+            name={trace.name}
+            status={trace.status}
+            durationMs={trace.durationMs}
+            startedAt={trace.startTime}
+            httpMethod={trace.httpMethod}
+            httpUrl={trace.httpUrl}
+            httpStatusCode={trace.httpStatusCode}
+            errorHint={errorHint}
+          />
           <Tooltip>
             <TooltipTrigger
               render={

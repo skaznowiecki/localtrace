@@ -1,3 +1,4 @@
+import { AlertCircleIcon } from "lucide-react"
 import { memo, useMemo } from "react"
 
 import {
@@ -82,7 +83,17 @@ const StatRow = memo(function StatRow({
               aria-hidden
             />
           )}
-          <span className="min-w-0 truncate text-[13px] text-foreground">
+          {span?.status === "error" ? (
+            <AlertCircleIcon className="size-3.5 shrink-0 text-destructive" />
+          ) : null}
+          <span
+            className={cn(
+              "min-w-0 truncate text-[13px]",
+              span?.status === "error"
+                ? "font-medium text-destructive"
+                : "text-foreground",
+            )}
+          >
             <SpanName
               name={span?.name ?? stat.name}
               attributes={span?.attributes}

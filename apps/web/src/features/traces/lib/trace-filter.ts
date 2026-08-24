@@ -30,7 +30,7 @@ export const TRACE_FILTER_KEYS: TraceFilterKeyDef[] = [
   {
     key: "duration",
     label: "duration",
-    description: "Duration with >, <, a range, or >= / <= (e.g. >100ms, 100ms-500ms)",
+    description: "e.g. >100ms, <1s, or 100ms-500ms",
   },
   { key: "name", label: "name", description: "Root span name contains" },
 ]

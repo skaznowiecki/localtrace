@@ -1,6 +1,7 @@
+import { AlertCircleIcon } from "lucide-react"
 import { memo } from "react"
 
-import { formatSpanDuration } from "@/lib/utils"
+import { cn, formatSpanDuration } from "@/lib/utils"
 
 import type { Span, SpanGroupMeta } from "../../types"
 
@@ -27,13 +28,25 @@ const MemberRow = memo(function MemberRow({
   member: Span
   onSelect: (spanId: string) => void
 }) {
+  const isError = member.status === "error"
+
   return (
     <button
       type="button"
       className="flex w-full cursor-pointer items-center gap-3 border-b border-border/40 px-1 py-2 text-left last:border-b-0 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => onSelect(member.id)}
     >
-      <span className="min-w-0 flex-1 truncate text-sm">{member.name}</span>
+      <span
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm",
+          isError && "font-medium text-destructive",
+        )}
+      >
+        {isError ? (
+          <AlertCircleIcon className="size-3.5 shrink-0 text-destructive" />
+        ) : null}
+        <span className="min-w-0 truncate">{member.name}</span>
+      </span>
       <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
         @{formatSpanDuration(member.startOffsetMs)}
       </span>
