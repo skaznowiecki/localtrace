@@ -2,6 +2,8 @@ import { createApp } from "./app"
 import { loadConfig } from "./config"
 import { openDb, type Db } from "@shared/db"
 import { log, setLevel } from "@shared/helpers"
+import { listenGrpc, type GrpcListener } from "@features/ingest"
+import { prune } from "@features/settings"
 import { breakdown } from "@features/traces"
 import { createPoller, type Poller } from "./infra/poller"
 
@@ -10,6 +12,8 @@ type Hot = {
   databasePath?: string
   signals?: boolean
   poller?: Poller
+  grpc?: GrpcListener
+  grpcPort?: number
 }
 
 const hot = ((globalThis as typeof globalThis & { __localTracer?: Hot })
@@ -21,6 +25,9 @@ setLevel(config.logLevel)
 if (hot.db && hot.databasePath !== config.databasePath) {
   hot.poller?.stop()
   hot.poller = undefined
+  await hot.grpc?.close()
+  hot.grpc = undefined
+  hot.grpcPort = undefined
   await hot.db.close()
   hot.db = undefined
 }
@@ -31,18 +38,47 @@ hot.db = db
 hot.databasePath = config.databasePath
 if (fresh) {
   log(`starting local-tracer api on 0.0.0.0:${config.apiPort}`)
+  log(
+    `otlp http OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${config.apiPort} OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`,
+  )
   log(`sentry dsn http://local@127.0.0.1:${config.apiPort}/1`)
   log(`datadog DD_TRACE_AGENT_URL=http://127.0.0.1:${config.apiPort}`)
   if (config.webRoot) log(`serving ui from ${config.webRoot}`)
+}
+
+if (hot.grpc && hot.grpcPort !== config.grpcPort) {
+  await hot.grpc.close()
+  hot.grpc = undefined
+  hot.grpcPort = undefined
+}
+if (config.grpcPort > 0 && !hot.grpc) {
+  hot.grpc = await listenGrpc({
+    port: config.grpcPort,
+    db,
+    maxBytes: config.otlpMaxBodyBytes,
+  })
+  hot.grpcPort = hot.grpc.port
+  log(
+    `otlp grpc OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${hot.grpc.port}`,
+  )
 }
 
 if (!hot.poller || hot.poller.kind !== "sleep") {
   hot.poller?.stop()
   hot.poller = createPoller()
 }
+let lastPruneAt = 0
 hot.poller.every(500, async () => {
   try {
     await breakdown(db)
+  } catch (err) {
+    log.error(err)
+  }
+  const now = Date.now()
+  if (now - lastPruneAt < 60_000) return
+  lastPruneAt = now
+  try {
+    await prune(db, config)
   } catch (err) {
     log.error(err)
   }
@@ -54,6 +90,9 @@ async function shutdown(signal: string) {
   log(`received ${signal}, shutting down`)
   hot.poller?.stop()
   hot.poller = undefined
+  await hot.grpc?.close()
+  hot.grpc = undefined
+  hot.grpcPort = undefined
   await hot.db?.close()
   hot.db = undefined
   process.exit(0)

@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { encode } from "@msgpack/msgpack"
-import { createApp } from "@/app"
-import type { Config } from "@/config"
-import { openDb, type Db } from "@shared/db"
+import { httpAttrs, useTestApp } from "../helpers"
 
 const TRACE_ID = "00000000000000000000000000000001"
 const SPAN_ID = "0000000000000002"
@@ -26,34 +24,11 @@ const namedSpan = {
   type: "web",
 }
 
-const config: Config = {
-  databasePath: ":memory:",
-  apiPort: 4318,
-  logLevel: "silent",
-  otlpMaxBodyBytes: 16 * 1024 * 1024,
-}
-
-let db: Db
-let app: ReturnType<typeof createApp>
-
-beforeEach(async () => {
-  db = await openDb(":memory:")
-  app = createApp({ db, config })
-})
-
-afterEach(async () => {
-  await db.close()
-})
-
-function httpAttrs(span: {
-  attributes: { http?: { method?: unknown; request?: { method?: unknown } } }
-}) {
-  return span.attributes.http ?? {}
-}
+const ctx = useTestApp()
 
 describe("datadog agent", () => {
   test("GET /info lists implemented endpoints and does not advertise v1.0", async () => {
-    const res = await app.request("/info")
+    const res = await ctx.app.request("/info")
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       endpoints: string[]
@@ -66,7 +41,7 @@ describe("datadog agent", () => {
   })
 
   test("v0.3 traces return empty 200", async () => {
-    const res = await app.request("/v0.3/traces", {
+    const res = await ctx.app.request("/v0.3/traces", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify([[namedSpan]]),
@@ -76,7 +51,7 @@ describe("datadog agent", () => {
   })
 
   test("v0.4 json traces overlay HTTP attrs and classify; raw skips overlay", async () => {
-    const ingest = await app.request("/v0.4/traces", {
+    const ingest = await ctx.app.request("/v0.4/traces", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify([[namedSpan]]),
@@ -86,7 +61,7 @@ describe("datadog agent", () => {
       rate_by_service: { "service:,env:": 1 },
     })
 
-    const detail = await app.request(`/api/traces/${TRACE_ID}`)
+    const detail = await ctx.app.request(`/api/traces/${TRACE_ID}`)
     expect(detail.status).toBe(200)
     const body = (await detail.json()) as {
       spans: Array<{
@@ -107,7 +82,7 @@ describe("datadog agent", () => {
     expect(httpAttrs(span).method).toBe("GET")
     expect(httpAttrs(span).request?.method).toBe("GET")
 
-    const rawRes = await app.request(`/api/traces/${TRACE_ID}?raw=true`)
+    const rawRes = await ctx.app.request(`/api/traces/${TRACE_ID}?raw=true`)
     const raw = (await rawRes.json()) as {
       spans: Array<{
         type?: string
@@ -150,14 +125,14 @@ describe("datadog agent", () => {
       {},
       4,
     ]
-    const ingest = await app.request("/v0.5/traces", {
+    const ingest = await ctx.app.request("/v0.5/traces", {
       method: "PUT",
       headers: { "content-type": "application/msgpack" },
       body: new Uint8Array(encode([dict, [[slots]]])),
     })
     expect(ingest.status).toBe(200)
 
-    const detail = await app.request(`/api/traces/${TRACE_ID}`)
+    const detail = await ctx.app.request(`/api/traces/${TRACE_ID}`)
     const body = (await detail.json()) as {
       spans: Array<{ name: string; service: string; provider: string; id: string }>
     }
@@ -168,7 +143,7 @@ describe("datadog agent", () => {
   })
 
   test("Java v0.5 probe [[],[]] returns 200", async () => {
-    const res = await app.request("/v0.5/traces", {
+    const res = await ctx.app.request("/v0.5/traces", {
       method: "PUT",
       headers: { "content-type": "application/msgpack" },
       body: new Uint8Array(encode([[], []])),
@@ -177,14 +152,14 @@ describe("datadog agent", () => {
   })
 
   test("v0.7 TracerPayload chunks ingest named spans", async () => {
-    const ingest = await app.request("/v0.7/traces", {
+    const ingest = await ctx.app.request("/v0.7/traces", {
       method: "PUT",
       headers: { "content-type": "application/msgpack" },
       body: new Uint8Array(encode({ chunks: [{ spans: [namedSpan] }] })),
     })
     expect(ingest.status).toBe(200)
 
-    const detail = await app.request(`/api/traces/${TRACE_ID}`)
+    const detail = await ctx.app.request(`/api/traces/${TRACE_ID}`)
     expect(detail.status).toBe(200)
     const body = (await detail.json()) as {
       spans: Array<{ name: string; provider: string }>
@@ -194,12 +169,12 @@ describe("datadog agent", () => {
   })
 
   test("POST /v1/input stores logs correlated by dd.trace_id", async () => {
-    await app.request("/v0.4/traces", {
+    await ctx.app.request("/v0.4/traces", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify([[namedSpan]]),
     })
-    const ingest = await app.request("/v1/input", {
+    const ingest = await ctx.app.request("/v1/input", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -212,7 +187,7 @@ describe("datadog agent", () => {
     })
     expect(ingest.status).toBe(200)
 
-    const logsRes = await app.request(`/api/traces/${TRACE_ID}/logs`)
+    const logsRes = await ctx.app.request(`/api/traces/${TRACE_ID}/logs`)
     expect(logsRes.status).toBe(200)
     const logs = (await logsRes.json()) as Array<{
       body: unknown
@@ -226,7 +201,7 @@ describe("datadog agent", () => {
   })
 
   test("POST /api/v1/series and /v0.6/stats return 200", async () => {
-    const series = await app.request("/api/v1/series", {
+    const series = await ctx.app.request("/api/v1/series", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -242,7 +217,7 @@ describe("datadog agent", () => {
     })
     expect(series.status).toBe(200)
 
-    const stats = await app.request("/v0.6/stats", { method: "POST" })
+    const stats = await ctx.app.request("/v0.6/stats", { method: "POST" })
     expect(stats.status).toBe(200)
   })
 })

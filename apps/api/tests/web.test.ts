@@ -1,18 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "vitest"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createApp } from "./app"
-import type { Config } from "./config"
+import { createApp } from "@/app"
 import { openDb, type Db } from "@shared/db"
-import { isReservedPath } from "./web"
-
-const baseConfig: Config = {
-  databasePath: ":memory:",
-  apiPort: 4318,
-  logLevel: "silent",
-  otlpMaxBodyBytes: 16 * 1024 * 1024,
-}
+import { isReservedPath } from "@/web"
+import { testConfig } from "./helpers"
 
 describe("isReservedPath", () => {
   test("keeps api and ingest paths off the spa fallback", () => {
@@ -42,7 +35,7 @@ describe("mountWeb", () => {
 
   test("without webRoot, unknown GET paths stay json 404", async () => {
     db = await openDb(":memory:")
-    const app = createApp({ db, config: baseConfig })
+    const app = createApp({ db, config: testConfig })
     const res = await app.request("/traces")
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual({ error: "not found" })
@@ -56,7 +49,7 @@ describe("mountWeb", () => {
     db = await openDb(":memory:")
     const app = createApp({
       db,
-      config: { ...baseConfig, webRoot: root },
+      config: { ...testConfig, webRoot: root },
     })
 
     const spa = await app.request("/traces")

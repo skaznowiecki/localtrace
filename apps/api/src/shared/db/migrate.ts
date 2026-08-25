@@ -1,4 +1,5 @@
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import type { DbConn } from "./client"
 
 type Migration = {
@@ -7,13 +8,19 @@ type Migration = {
   files: string[]
 }
 
-const SQL_DIR = join(import.meta.dir, "sql")
+const SQL_DIR = join(dirname(fileURLToPath(import.meta.url)), "sql")
 
 const MIGRATIONS: Migration[] = [
   {
     version: 1,
     name: "initial",
-    files: ["001_spans.sql", "001_traces.sql", "001_logs.sql", "001_metrics.sql"],
+    files: [
+      "001_spans.sql",
+      "001_traces.sql",
+      "001_logs.sql",
+      "001_metrics.sql",
+      "001_settings.sql",
+    ],
   },
 ]
 

@@ -32,7 +32,7 @@ ENV LT_DATABASE_PATH=/app/data/local-tracer.db \
 RUN mkdir -p /app/data && chown bun:bun /app/data
 USER bun
 
-EXPOSE 4318
+EXPOSE 4318 4317
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
   CMD bun -e "fetch('http://127.0.0.1:4318/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

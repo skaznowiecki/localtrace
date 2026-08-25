@@ -203,6 +203,7 @@ export function useTracesContext() { /* useContext + guard */ }
 - Hono
 - SQLite via `bun:sqlite`
 - OTLP HTTP (`POST /v1/traces|logs|metrics`) JSON and protobuf (gzip optional)
+- OTLP gRPC (`:4317`) TraceService / LogsService / MetricsService `Export`
 
 One app, no extra pnpm packages. Colocate by feature; each feature owns `types/`, `repositories/`, `services/`, `routes.ts`.
 
@@ -233,7 +234,7 @@ apps/api/src/
   features/
     traces/             list GET + store (called by ingest) + tools/
     logs/               list-by-trace GET + store + tools/
-    metrics/            store + MCP read tools
+    metrics/            store + HTTP GET / + /facets + MCP read tools (no web UI)
     catalog/            GET /api/services + tools/
     ingest/             OTLP + Sentry + Datadog providers + ingest service
     mcp/                Streamable HTTP /mcp — registers each feature's tools/
@@ -294,6 +295,7 @@ features/ingest/providers/
 - **Shared** = the HTTP request (body bytes, encoding, content-type, size). Not IDs, timestamps, or attributes of a protocol.
 - **Protocol-specific** = that protocol’s payload shape. New protocol → new `providers/<name>/` + register in `resolve.ts` (more specific first). Reuse `providers/shared/`; do not import another protocol.
 - Wire formats of the same protocol (JSON vs protobuf, …) are siblings under that protocol’s folder.
+- **Tests required.** New protocol (or a wire format the SDK actually sends) is not done until `apps/api/tests/ingest/<name>.test.ts` covers the HTTP loop: ingest `200` → `GET /api/traces/:id` (provider, type, overlay) → `?raw=true`. Add logs/metrics cases when the protocol emits them. Vitest only; do **not** colocate `*.test.ts` under `providers/<name>/`.
 
 ### Naming
 
@@ -364,6 +366,8 @@ Not `listTraces`, not `insertLogs`, not `loadTraceRebuildRows`. Prefix only when
 
 ```
 app.route("/mcp", mcp)                 // ALL /
+app.route("/api/logs", logsList)    // GET /, GET /facets
+app.route("/api/metrics", metrics)  // GET /, GET /facets (no web UI)
 app.route("/api/traces", logs)      // GET /:id/logs
 app.route("/api/traces", traces)    // GET /, GET /facets, GET /:id/sql, GET /:id
 app.route("/api/services", catalog) // GET /
@@ -403,6 +407,11 @@ POST /v1/traces
   → providers/otlp/json | otlp/proto (gzip decode, content-type match → records)
   → traces/services/store → traces/repositories → SQLite
 
+gRPC :4317  TraceService|LogsService|MetricsService/Export
+  → ingest/providers/otlp/grpc (HTTP/2 + 5-byte frame)
+  → providers/otlp/proto/parse → store
+  (gRPC against :4318 → 415 hint; not a Hono provider)
+
 POST /api/:projectId/envelope
   → ingest/envelope routes (bodyLimit)
   → ingest/services/envelope.ts
@@ -433,8 +442,12 @@ GET /api/traces/:id
 GET /api/traces/:id/sql
   → traces/routes → traces/services/sql → traces/repositories → SQLite
 
+GET /api/metrics  GET /api/metrics/facets
+  → metrics/routes → query / facets → repositories → SQLite
+  (no web UI — ingest + HTTP + MCP only)
+
 POST /mcp
-  → mcp/routes → traces|logs|catalog tools.register → services/execute → SQLite
+  → mcp/routes → traces|logs|metrics|catalog tools.register → services/execute → SQLite
 ```
 
 ### Error handling
@@ -461,6 +474,7 @@ SQLite is a single writer. `shared/db/client.ts` serializes all work through `ru
 | OTLP helpers (ids, values, paths) | `features/ingest/providers/otlp/helpers/` |
 | OTLP mappers | `features/ingest/providers/otlp/mappers/` |
 | OTLP JSON / protobuf | `features/ingest/providers/otlp/json/` / `otlp/proto/` |
+| OTLP gRPC (`:4317`) | `features/ingest/providers/otlp/grpc/` (not a Hono provider) |
 | Sentry envelope | `features/ingest/providers/sentry/` |
 | Datadog Agent HTTP | `features/ingest/providers/datadog/` |
 | New ingest protocol | `features/ingest/providers/<name>/` |

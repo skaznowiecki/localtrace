@@ -37,9 +37,11 @@ jobs:
       - name: Typecheck web
         run: pnpm --filter @local-tracer/web exec tsc --noEmit
 
+      - name: Typecheck api
+        run: pnpm --filter @local-tracer/api exec tsc --noEmit
+
       - name: Test api
-        run: bun test
-        working-directory: apps/api
+        run: pnpm --filter @local-tracer/api test
 
       - uses: docker/setup-buildx-action@v4
 

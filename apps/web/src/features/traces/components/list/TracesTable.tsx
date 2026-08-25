@@ -229,7 +229,7 @@ export function TracesTable() {
                     >
                       {query.trim()
                         ? "No traces match this filter."
-                        : "No traces yet. Send OTLP data to start exploring."}
+                        : "No traces yet."}
                     </TableCell>
                   </TableRow>
                 ) : (

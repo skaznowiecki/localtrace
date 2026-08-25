@@ -1,8 +1,12 @@
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import protobuf from "protobufjs"
 import { IngestError } from "../../errors"
 
-const PROTO_ROOT = join(import.meta.dir, "../../../../../../proto")
+const PROTO_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../../../proto",
+)
 
 let rootPromise: Promise<protobuf.Root> | undefined
 
@@ -43,4 +47,14 @@ export async function decodeProtobuf(
     const message = err instanceof Error ? err.message : String(err)
     throw new IngestError("invalid_payload", `protobuf decode failed: ${message}`)
   }
+}
+
+export async function encodeProtobuf(
+  typeName: string,
+  value: Record<string, unknown>,
+): Promise<Uint8Array> {
+  const root = await loadRoot()
+  const type = root.lookupType(typeName)
+  const encoded = type.encode(type.fromObject(value)).finish()
+  return new Uint8Array(encoded)
 }

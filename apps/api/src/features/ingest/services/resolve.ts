@@ -1,6 +1,7 @@
 import type { Context } from "hono"
 import type { AppEnv } from "@/app-env"
 import { IngestError } from "../providers/errors"
+import { rejectGrpcHttpRequest } from "../providers/otlp/helpers/grpc"
 import type {
   IngestRequestContext,
   ResolvedIngestProvider,
@@ -8,6 +9,8 @@ import type {
 import { resolveIngestProvider } from "../providers/resolve"
 
 export function execute(c: Context<AppEnv>): ResolvedIngestProvider {
+  rejectGrpcHttpRequest(c)
+
   const ctx: IngestRequestContext = {
     path: c.req.path,
     contentType: c.req.header("content-type"),

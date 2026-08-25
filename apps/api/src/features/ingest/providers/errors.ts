@@ -2,6 +2,7 @@ import { AppError } from "@shared/errors"
 
 export type IngestErrorType =
   | "unsupported_media_type"
+  | "unsupported_protocol"
   | "unsupported_content_encoding"
   | "payload_too_large"
   | "invalid_payload"
@@ -9,6 +10,7 @@ export type IngestErrorType =
 
 const STATUS = {
   unsupported_media_type: 415,
+  unsupported_protocol: 415,
   unsupported_content_encoding: 415,
   payload_too_large: 413,
   invalid_payload: 400,

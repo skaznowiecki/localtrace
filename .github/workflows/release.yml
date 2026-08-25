@@ -76,10 +76,8 @@ jobs:
           fetch-depth: 0
 
       - uses: orhun/git-cliff-action@v4
-        id: git-cliff
         with:
-          config: cliff.toml
-          args: --latest --strip header
+          args: --latest
         env:
           OUTPUT: CHANGES.md
           GITHUB_REPO: ${{ github.repository }}

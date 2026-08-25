@@ -56,6 +56,13 @@ migrate: check
     rm -f "$LT_DATABASE_PATH" "$LT_DATABASE_PATH-wal" "$LT_DATABASE_PATH-shm"
     pnpm --filter @local-tracer/api migrate
 
+typecheck: check
+    pnpm --filter @local-tracer/web exec tsc --noEmit
+    pnpm --filter @local-tracer/api typecheck
+
+test: check
+    pnpm --filter @local-tracer/api test
+
 build: check
     pnpm build
 

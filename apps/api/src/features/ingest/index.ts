@@ -1,2 +1,5 @@
 export { mountAgent } from "./providers/datadog/agent"
+export { listenGrpc } from "./providers/otlp/grpc"
+export type { GrpcListener } from "./providers/otlp/grpc"
+export { rejectGrpcHttpRequest } from "./providers/otlp/helpers/grpc"
 export { envelope, routes } from "./routes"

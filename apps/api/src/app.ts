@@ -11,10 +11,13 @@ import { routes as catalog } from "@features/catalog"
 import {
   envelope as ingestEnvelope,
   mountAgent,
+  rejectGrpcHttpRequest,
   routes as ingest,
 } from "@features/ingest"
 import { listRoutes as logsList, routes as logs } from "@features/logs"
 import { routes as mcp } from "@features/mcp"
+import { routes as metrics } from "@features/metrics"
+import { routes as settings } from "@features/settings"
 import { routes as traces } from "@features/traces"
 import { mountWeb } from "./web"
 
@@ -51,14 +54,19 @@ export function createApp(deps: {
     return c.json({ error: "internal error" }, 500)
   })
 
-  app.notFound((c) => c.json({ error: "not found" }, 404))
+  app.notFound((c) => {
+    rejectGrpcHttpRequest(c)
+    return c.json({ error: "not found" }, 404)
+  })
 
   app.get("/health", (c) => c.json({ status: "ok" }))
 
   mountAgent(app, deps.config.otlpMaxBodyBytes)
 
   app.route("/mcp", mcp(deps.db))
+  app.route("/api/settings", settings())
   app.route("/api/logs", logsList())
+  app.route("/api/metrics", metrics())
   app.route("/api/traces", logs())
   app.route("/api/traces", traces())
   app.route("/api/services", catalog())

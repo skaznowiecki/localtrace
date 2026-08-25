@@ -206,7 +206,7 @@ export function LogsTable() {
                     >
                       {query.trim()
                         ? "No logs match this filter."
-                        : "No logs yet. Send OTLP data to start exploring."}
+                        : "No logs yet."}
                     </TableCell>
                   </TableRow>
                 ) : (

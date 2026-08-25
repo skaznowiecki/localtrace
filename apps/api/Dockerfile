@@ -15,5 +15,5 @@ ENV LT_API_PORT=4318
 
 RUN mkdir -p /app/data
 
-EXPOSE 4318
+EXPOSE 4318 4317
 CMD ["bun", "src/index.ts"]

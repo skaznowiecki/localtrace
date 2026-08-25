@@ -7,6 +7,7 @@ import {
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { SettingsButton } from "@/features/settings"
 import { LiveHeader, TimeRangeProvider } from "@/features/time-range"
 
 export const Route = createRootRoute({
@@ -20,7 +21,10 @@ function RootLayout() {
         <div className="flex h-svh flex-col overflow-hidden">
           <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b px-4">
             <RouteSwitcher />
-            <TracesHeaderActions />
+            <div className="flex items-center gap-1.5">
+              <TracesHeaderActions />
+              <SettingsButton />
+            </div>
           </header>
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Outlet />
