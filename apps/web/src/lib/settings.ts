@@ -57,38 +57,3 @@ export function settingsQuery() {
     staleTime: 30_000,
   })
 }
-
-export function otlpHttpExport(otlp: string): string {
-  return [
-    `export OTEL_EXPORTER_OTLP_ENDPOINT=${otlp}`,
-    "export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf",
-  ].join("\n")
-}
-
-export function otlpGrpcExport(otlpGrpc: string): string {
-  return `export OTEL_EXPORTER_OTLP_ENDPOINT=${otlpGrpc}`
-}
-
-export function sentryExport(dsn: string): string {
-  return `SENTRY_DSN=${dsn}`
-}
-
-export function datadogExport(url: string): string {
-  return `DD_TRACE_AGENT_URL=${url}`
-}
-
-export function cursorMcpJson(mcp: string): string {
-  return JSON.stringify(
-    { mcpServers: { "local-tracer": { url: mcp } } },
-    null,
-    2,
-  )
-}
-
-export function claudeMcpJson(mcp: string): string {
-  return JSON.stringify(
-    { mcpServers: { "local-tracer": { type: "http", url: mcp } } },
-    null,
-    2,
-  )
-}

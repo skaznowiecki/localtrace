@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SettingsIcon } from "lucide-react"
 import { useState } from "react"
 
-import { IngestSetup } from "@/components/IngestSetup"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,11 +74,11 @@ export function SettingsButton() {
         >
           <SettingsIcon />
         </DialogTrigger>
-        <DialogContent className="max-h-[min(90svh,40rem)] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>
-              Retention, ingest endpoints, and a full wipe of local telemetry.
+              Retention and a full wipe of local telemetry.
             </DialogDescription>
           </DialogHeader>
 
@@ -108,18 +107,10 @@ export function SettingsButton() {
                 ))}
               </ToggleGroup>
               <FieldDescription>
-                Older traces, logs, and metrics are deleted automatically.
-                Default is 1 day.
+                Older telemetry is deleted automatically.
               </FieldDescription>
             </Field>
           </FieldGroup>
-
-          <Separator />
-
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">Connect</p>
-            <IngestSetup compact />
-          </div>
 
           <Separator />
 
@@ -127,7 +118,7 @@ export function SettingsButton() {
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-sm font-medium">Clear all data</p>
               <p className="text-sm text-muted-foreground">
-                Deletes traces, logs, and metrics. Keeps this retention setting.
+                Deletes stored telemetry.
               </p>
             </div>
             <Button
