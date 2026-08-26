@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { parseTimeRangeSearch, type TimeRangeSearch } from "@/features/time-range"
 import {
   isTraceSortField,
   isTraceSortOrder,
@@ -8,7 +9,7 @@ import {
   type TraceSortOrder,
 } from "@/features/traces"
 
-type TracesSearch = {
+type TracesSearch = TimeRangeSearch & {
   trace?: string
   q?: string
   sort?: TraceSortField
@@ -17,7 +18,7 @@ type TracesSearch = {
 
 export const Route = createFileRoute("/traces")({
   validateSearch: (search: Record<string, unknown>): TracesSearch => {
-    const result: TracesSearch = {}
+    const result: TracesSearch = { ...parseTimeRangeSearch(search) }
     if (typeof search.trace === "string" && search.trace.length > 0) {
       result.trace = search.trace
     }

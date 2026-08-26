@@ -7,8 +7,9 @@ import {
   type LogSortField,
   type LogSortOrder,
 } from "@/features/logs"
+import { parseTimeRangeSearch, type TimeRangeSearch } from "@/features/time-range"
 
-type LogsSearch = {
+type LogsSearch = TimeRangeSearch & {
   log?: string
   q?: string
   sort?: LogSortField
@@ -17,7 +18,7 @@ type LogsSearch = {
 
 export const Route = createFileRoute("/logs")({
   validateSearch: (search: Record<string, unknown>): LogsSearch => {
-    const result: LogsSearch = {}
+    const result: LogsSearch = { ...parseTimeRangeSearch(search) }
     if (typeof search.log === "string" && search.log.length > 0) {
       result.log = search.log
     }

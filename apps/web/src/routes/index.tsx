@@ -1,7 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
+import { pickTimeRangeSearch } from "@/features/time-range"
+
 export const Route = createFileRoute("/")({
-  beforeLoad: () => {
-    throw redirect({ to: "/traces" })
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/traces", search: pickTimeRangeSearch(search) })
   },
 })

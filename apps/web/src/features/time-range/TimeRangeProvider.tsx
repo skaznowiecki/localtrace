@@ -1,9 +1,5 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  type ReactNode,
-} from "react"
+import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router"
+import { createContext, useContext, useEffect, type ReactNode } from "react"
 
 export type LookbackPreset = "latest" | "15m" | "1h" | "6h"
 
@@ -25,6 +21,43 @@ const LOOKBACK_MS: Record<LookbackPreset, number | null> = {
   "6h": 6 * 60 * 60_000,
 }
 
+export type TimeRangeSearch = {
+  live?: false
+  lookback?: Exclude<LookbackPreset, "latest">
+  since?: string
+}
+
+function isLookbackParam(
+  value: unknown,
+): value is Exclude<LookbackPreset, "latest"> {
+  return value === "15m" || value === "1h" || value === "6h"
+}
+
+/** Root search: omit defaults so Latest + LIVE stays a clean URL. */
+export function parseTimeRangeSearch(
+  search: Record<string, unknown>,
+): TimeRangeSearch {
+  const result: TimeRangeSearch = {}
+  if (
+    search.live === false ||
+    search.live === "false" ||
+    search.live === "0"
+  ) {
+    result.live = false
+  }
+  if (isLookbackParam(search.lookback)) {
+    result.lookback = search.lookback
+  }
+  if (typeof search.since === "string" && search.since.length > 0) {
+    result.since = search.since
+  }
+  return result
+}
+
+export function pickTimeRangeSearch(search: TimeRangeSearch): TimeRangeSearch {
+  return parseTimeRangeSearch(search)
+}
+
 function sinceIsoFromLookback(lookbackMs: number): string {
   return new Date(Date.now() - lookbackMs).toISOString()
 }
@@ -44,36 +77,65 @@ const TimeRangeContext = createContext<TimeRangeContextValue | null>(null)
 /**
  * LIVE polling + short relative lookback for list views.
  * Shared between the app header controls and list queries.
- * State is in-memory only — not synced to the URL.
+ * Synced to the URL (`live`, `lookback`, `since`) so reload keeps the selection.
  */
 export function TimeRangeProvider({ children }: { children: ReactNode }) {
-  const [live, setLiveState] = useState(true)
-  const [preset, setPresetState] = useState<LookbackPreset>("latest")
-  const [pausedSince, setPausedSince] = useState<string | undefined>()
-
+  const navigateTraces = useNavigate({ from: "/traces" })
+  const navigateLogs = useNavigate({ from: "/logs" })
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const search = useSearch({ from: "__root__" })
+  const live = search.live !== false
+  const preset: LookbackPreset = search.lookback ?? "latest"
   const lookbackMs = LOOKBACK_MS[preset]
+  const pausedSince = live ? undefined : search.since
+  const onLogs = pathname.startsWith("/logs")
+
+  const patchSearch = (next: {
+    live: boolean
+    preset: LookbackPreset
+    pausedSince: string | undefined
+  }) => {
+    const patch: TimeRangeSearch = {
+      live: next.live ? undefined : false,
+      lookback: next.preset === "latest" ? undefined : next.preset,
+      since:
+        next.live || next.pausedSince == null ? undefined : next.pausedSince,
+    }
+    if (onLogs) {
+      void navigateLogs({
+        search: (prev) => ({ ...prev, ...patch }),
+        replace: true,
+      })
+    } else {
+      void navigateTraces({
+        search: (prev) => ({ ...prev, ...patch }),
+        replace: true,
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (live || lookbackMs == null || pausedSince != null) return
+    patchSearch({
+      live,
+      preset,
+      pausedSince: sinceIsoFromLookback(lookbackMs),
+    })
+  }, [live, lookbackMs, onLogs, pausedSince, preset])
 
   const setLive = (next: boolean) => {
-    if (!next && live) {
-      setPausedSince(
-        lookbackMs != null ? sinceIsoFromLookback(lookbackMs) : undefined,
-      )
-    } else if (next) {
-      setPausedSince(undefined)
-    }
-    setLiveState(next)
+    const nextSince =
+      !next && lookbackMs != null ? sinceIsoFromLookback(lookbackMs) : undefined
+    patchSearch({ live: next, preset, pausedSince: nextSince })
   }
 
   const setPreset = (next: LookbackPreset) => {
-    setPresetState(next)
     const nextMs = LOOKBACK_MS[next]
-    if (!live) {
-      setPausedSince(
-        nextMs != null ? sinceIsoFromLookback(nextMs) : undefined,
-      )
-    } else {
-      setPausedSince(undefined)
-    }
+    const nextSince =
+      !live && nextMs != null ? sinceIsoFromLookback(nextMs) : undefined
+    patchSearch({ live, preset: next, pausedSince: nextSince })
   }
 
   return (

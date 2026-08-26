@@ -3,14 +3,21 @@ import {
   Outlet,
   useNavigate,
   useRouterState,
+  useSearch,
 } from "@tanstack/react-router"
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SettingsButton } from "@/features/settings"
-import { LiveHeader, TimeRangeProvider } from "@/features/time-range"
+import {
+  LiveHeader,
+  parseTimeRangeSearch,
+  pickTimeRangeSearch,
+  TimeRangeProvider,
+} from "@/features/time-range"
 
 export const Route = createRootRoute({
+  validateSearch: parseTimeRangeSearch,
   component: RootLayout,
 })
 
@@ -51,6 +58,7 @@ function TracesHeaderActions() {
 
 function RouteSwitcher() {
   const navigate = useNavigate()
+  const timeRangeSearch = useSearch({ from: "__root__" })
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -61,11 +69,12 @@ function RouteSwitcher() {
       value={[activeRoute]}
       onValueChange={(value) => {
         const next = value[0]
+        const search = pickTimeRangeSearch(timeRangeSearch)
         if (next === "traces") {
-          navigate({ to: "/traces" })
+          navigate({ to: "/traces", search })
         }
         if (next === "logs") {
-          navigate({ to: "/logs" })
+          navigate({ to: "/logs", search })
         }
       }}
       spacing={0}
