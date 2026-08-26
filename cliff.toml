@@ -10,9 +10,6 @@ body = """
 - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | split(pat="\n") | first }}{% if commit.breaking %} **BREAKING CHANGE**{% endif %}
 {% endfor %}
 {% endfor -%}
-{% if previous.version %}
-**Full Changelog**: https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/compare/{{ previous.version }}...{{ version }}
-{% endif %}
 """
 
 [git]
