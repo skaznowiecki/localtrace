@@ -1,10 +1,10 @@
 {
-  "name": "local-tracer",
+  "name": "localtrace",
   "private": true,
   "workspaces": ["apps/web", "apps/api"],
   "scripts": {
-    "dev": "pnpm --filter @local-tracer/web dev",
-    "dev:api": "pnpm --filter @local-tracer/api dev",
-    "build": "pnpm --filter @local-tracer/web build"
+    "dev": "pnpm --filter @localtrace/web dev",
+    "dev:api": "pnpm --filter @localtrace/api dev",
+    "build": "pnpm --filter @localtrace/web build"
   }
 }

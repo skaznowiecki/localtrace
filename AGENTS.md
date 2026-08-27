@@ -505,7 +505,7 @@ apps/api/src/shared/db/
 
 ### No backwards compatibility
 
-This is a **local-only** tracer. Data is disposable. **Never** design for old rows, old columns, or old API shapes.
+localtrace is **local-only**. Data is disposable. **Never** design for old rows, old columns, or old API shapes.
 
 - **`just migrate` wipes and recreates.** It deletes `LT_DATABASE_PATH` (and `-wal` / `-shm`) then applies `001_*.sql` from scratch. Do this for any schema or denormalized-field change. Do not `rm` the DB files by hand.
 - **Edit `001_*.sql` in place.** Do not add `002_…` / extra columns / dual fields just to keep existing DBs working (`http_url` path + `http_full_url`, optional DTO leftovers, frontend `??` fallbacks for missing ingest fields).
@@ -537,18 +537,18 @@ just migrate
 Boot path (applies pending migrations only; does **not** wipe):
 
 ```
-bun src/index.ts   # or just dev / pnpm --filter @local-tracer/api dev
+bun src/index.ts   # or just dev / pnpm --filter @localtrace/api dev
   → openDb() → initSchema()
 ```
 
-- **Database path:** `LT_DATABASE_PATH` env var, default `./data/local-tracer.db`.
+- **Database path:** `LT_DATABASE_PATH` env var, default `./data/localtrace.db`.
 - **`just migrate`:** always wipe + recreate. Data is discarded; re-ingest after.
-- **API boot / `pnpm --filter @local-tracer/api migrate`:** apply pending versions only; already-applied ones are skipped.
+- **API boot / `pnpm --filter @localtrace/api migrate`:** apply pending versions only; already-applied ones are skipped.
 - **Verify** with sqlite3 against the live file (WAL allows concurrent readers):
 
 ```bash
-sqlite3 ./data/local-tracer.db "SELECT version FROM schema_meta;"
-sqlite3 ./data/local-tracer.db "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+sqlite3 ./data/localtrace.db "SELECT version FROM schema_meta;"
+sqlite3 ./data/localtrace.db "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 ```
 
 ### Changing schema

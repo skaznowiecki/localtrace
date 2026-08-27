@@ -7,8 +7,8 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web ./apps/web
 COPY apps/api/package.json ./apps/api/
-RUN pnpm install --frozen-lockfile --filter @local-tracer/web... \
-    && pnpm --filter @local-tracer/web build \
+RUN pnpm install --frozen-lockfile --filter @localtrace/web... \
+    && pnpm --filter @localtrace/web build \
     && rm -rf apps/web/node_modules node_modules
 
 # Runtime: Alpine bun, no apt, no curl. bun:sqlite is built into bun.
@@ -24,7 +24,7 @@ COPY apps/api/proto ./proto
 COPY apps/api/tsconfig.json ./
 COPY --from=web /app/apps/web/dist ./public
 
-ENV LT_DATABASE_PATH=/app/data/local-tracer.db \
+ENV LT_DATABASE_PATH=/app/data/localtrace.db \
     LT_API_PORT=4318 \
     LT_WEB_ROOT=/app/public \
     NODE_ENV=production

@@ -5,7 +5,7 @@ import { execute } from "../../services/list"
 export function register(server: McpServer, db: Db) {
   server.registerResource(
     "services",
-    "local-tracer://services",
+    "localtrace://services",
     {
       title: "Services",
       description: "Services that have ingested traces, with trace counts",

@@ -13,12 +13,12 @@ import { execute as withSpans } from "../../services/with-spans"
 export function register(server: McpServer, db: Db) {
   server.registerResource(
     "trace",
-    new ResourceTemplate("local-tracer://traces/{id}", {
+    new ResourceTemplate("localtrace://traces/{id}", {
       list: async () => {
         const traces = await list(db, filters({ limit: 20 }))
         return {
           resources: traces.map((trace) => ({
-            uri: `local-tracer://traces/${trace.id}`,
+            uri: `localtrace://traces/${trace.id}`,
             name: trace.name,
             description: `${trace.service} ${trace.status} ${trace.duration_ms}ms`,
             mimeType: "application/json",

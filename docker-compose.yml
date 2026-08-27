@@ -9,7 +9,7 @@ services:
       - "4318:4318"
       - "4317:4317"
     environment:
-      - LT_DATABASE_PATH=/app/data/local-tracer.db
+      - LT_DATABASE_PATH=/app/data/localtrace.db
       - LT_API_PORT=4318
       - LT_GRPC_PORT=4317
     healthcheck:

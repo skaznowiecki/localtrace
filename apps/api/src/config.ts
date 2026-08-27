@@ -27,7 +27,7 @@ function envRetentionHours(): RetentionHours {
 
 export function loadConfig(): Config {
   return {
-    databasePath: process.env.LT_DATABASE_PATH ?? "./data/local-tracer.db",
+    databasePath: process.env.LT_DATABASE_PATH ?? "./data/localtrace.db",
     apiPort: envInt("LT_API_PORT", 4318),
     grpcPort: envInt("LT_GRPC_PORT", 4317),
     logLevel: parseLevel(process.env.LT_LOG_LEVEL),

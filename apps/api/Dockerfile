@@ -10,7 +10,7 @@ COPY apps/api/src ./src
 COPY apps/api/proto ./proto
 COPY apps/api/tsconfig.json ./
 
-ENV LT_DATABASE_PATH=/app/data/local-tracer.db
+ENV LT_DATABASE_PATH=/app/data/localtrace.db
 ENV LT_API_PORT=4318
 
 RUN mkdir -p /app/data

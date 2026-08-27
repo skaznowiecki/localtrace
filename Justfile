@@ -1,4 +1,4 @@
-# Local Tracer development commands
+# localtrace development commands
 
 default:
     @just --list
@@ -40,28 +40,28 @@ check:
 dev: check
     #!/usr/bin/env bash
     set -euo pipefail
-    export LT_DATABASE_PATH="${LT_DATABASE_PATH:-{{justfile_directory()}}/data/local-tracer.db}"
+    export LT_DATABASE_PATH="${LT_DATABASE_PATH:-{{justfile_directory()}}/data/localtrace.db}"
     mkdir -p "$(dirname "$LT_DATABASE_PATH")"
     trap 'kill 0' EXIT
-    pnpm --filter @local-tracer/api dev &
-    pnpm --filter @local-tracer/web dev &
+    pnpm --filter @localtrace/api dev &
+    pnpm --filter @localtrace/web dev &
     wait
 
 # Wipe the local SQLite file and recreate schema from 001_*.sql.
 migrate: check
     #!/usr/bin/env bash
     set -euo pipefail
-    export LT_DATABASE_PATH="${LT_DATABASE_PATH:-{{justfile_directory()}}/data/local-tracer.db}"
+    export LT_DATABASE_PATH="${LT_DATABASE_PATH:-{{justfile_directory()}}/data/localtrace.db}"
     mkdir -p "$(dirname "$LT_DATABASE_PATH")"
     rm -f "$LT_DATABASE_PATH" "$LT_DATABASE_PATH-wal" "$LT_DATABASE_PATH-shm"
-    pnpm --filter @local-tracer/api migrate
+    pnpm --filter @localtrace/api migrate
 
 typecheck: check
-    pnpm --filter @local-tracer/web exec tsc --noEmit
-    pnpm --filter @local-tracer/api typecheck
+    pnpm --filter @localtrace/web exec tsc --noEmit
+    pnpm --filter @localtrace/api typecheck
 
 test: check
-    pnpm --filter @local-tracer/api test
+    pnpm --filter @localtrace/api test
 
 build: check
     pnpm build
@@ -74,4 +74,4 @@ docker-down:
 
 # Build the production image (UI + API) for local smoke tests.
 docker-build:
-    docker build -t local-tracer:dev .
+    docker build -t localtrace:dev .

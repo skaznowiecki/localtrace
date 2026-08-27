@@ -9,9 +9,9 @@ import { instructions } from "./instructions"
 export function createServer(db: Db): McpServer {
   const server = new McpServer(
     {
-      name: "local-tracer",
+      name: "localtrace",
       version: "0.1.0",
-      title: "Local Tracer",
+      title: "localtrace",
     },
     { instructions },
   )
