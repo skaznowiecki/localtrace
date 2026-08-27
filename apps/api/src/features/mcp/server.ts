@@ -11,7 +11,7 @@ export function createServer(db: Db): McpServer {
     {
       name: "localtrace",
       version: "0.1.0",
-      title: "localtrace",
+      title: "LocalTrace",
     },
     { instructions },
   )

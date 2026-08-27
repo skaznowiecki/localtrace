@@ -37,7 +37,7 @@ const db = hot.db ?? (await openDb(config.databasePath))
 hot.db = db
 hot.databasePath = config.databasePath
 if (fresh) {
-  log(`starting localtrace api on 0.0.0.0:${config.apiPort}`)
+  log(`starting LocalTrace api on 0.0.0.0:${config.apiPort}`)
   log(
     `otlp http OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${config.apiPort} OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`,
   )

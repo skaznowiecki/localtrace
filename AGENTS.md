@@ -505,7 +505,7 @@ apps/api/src/shared/db/
 
 ### No backwards compatibility
 
-localtrace is **local-only**. Data is disposable. **Never** design for old rows, old columns, or old API shapes.
+LocalTrace is **local-only**. Data is disposable. **Never** design for old rows, old columns, or old API shapes.
 
 - **`just migrate` wipes and recreates.** It deletes `LT_DATABASE_PATH` (and `-wal` / `-shm`) then applies `001_*.sql` from scratch. Do this for any schema or denormalized-field change. Do not `rm` the DB files by hand.
 - **Edit `001_*.sql` in place.** Do not add `002_…` / extra columns / dual fields just to keep existing DBs working (`http_url` path + `http_full_url`, optional DTO leftovers, frontend `??` fallbacks for missing ingest fields).

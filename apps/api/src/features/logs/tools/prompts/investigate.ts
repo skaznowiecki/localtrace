@@ -55,7 +55,7 @@ export function register(server: McpServer) {
             content: {
               type: "text",
               text: [
-                "Investigate this localtrace log. Do not invent telemetry — fetch it with the tools below.",
+                "Investigate this LocalTrace log. Do not invent telemetry — fetch it with the tools below.",
                 "",
                 "Context:",
                 ...context,

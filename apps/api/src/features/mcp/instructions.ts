@@ -1,5 +1,5 @@
 export const instructions = [
-  "localtrace is a local observability store (traces, logs, metrics).",
+  "LocalTrace is a local observability store (traces, logs, metrics).",
   "",
   "Playbook:",
   "1. Call list_facets / list_log_facets / list_metric_facets before filtering by invented values.",

@@ -1,16 +1,16 @@
-# localtrace
+# LocalTrace
 
 **Observability for coding agents.** Local-first. Agent-first. Native connectors.
 
 An agent that writes code without seeing the running system is guessing. It can read the source, run tests, and grep logs — but it cannot see *what actually happened*: which SQL was slow, which HTTP call returned 500, which Redis key missed, which span failed.
 
-localtrace exists to close that gap.
+LocalTrace exists to close that gap.
 
 > **The goal is not another dashboard.**  
 > The goal is **visibility for the agent** — so it can test, debug, and develop against the real behavior of the system, not only against the code it wrote.
 
 ```
-your app  ──OTLP HTTP/gRPC / Sentry / Datadog──►  localtrace  ──MCP──►  the agent
+your app  ──OTLP HTTP/gRPC / Sentry / Datadog──►  LocalTrace  ──MCP──►  the agent
                                               │
                                               └── UI (optional, for you)
 ```
@@ -37,7 +37,7 @@ That means:
 
 ## What it does
 
-localtrace is a **local APM** that sits on your machine, accepts telemetry from your app, and exposes it to coding agents over [MCP](https://modelcontextprotocol.io).
+LocalTrace is a **local APM** that sits on your machine, accepts telemetry from your app, and exposes it to coding agents over [MCP](https://modelcontextprotocol.io).
 
 1. **Ingest** — your app already talks OpenTelemetry, Sentry, or Datadog. Point OTLP/HTTP, Sentry, or Datadog at `127.0.0.1:4318`, or OTLP/gRPC at `127.0.0.1:4317`.
 2. **Store** — traces, logs, and metrics land in SQLite. No cluster. No account.
@@ -51,11 +51,11 @@ Ingest and store work (OTLP + Datadog series). Agents read them over MCP (`list_
 
 ## Native connectors
 
-You do not add a localtrace SDK. You do not rewrite instrumentation.
+You do not add a LocalTrace SDK. You do not rewrite instrumentation.
 
 The API **is** an OTLP collector (HTTP + gRPC), a Sentry ingest, and a Datadog Agent.
 
-| Connector | What you point at localtrace | What is ingested |
+| Connector | What you point at LocalTrace | What is ingested |
 | --- | --- | --- |
 | **OpenTelemetry HTTP** | `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` + `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` | Traces, logs, metrics (`POST /v1/traces\|logs\|metrics`, JSON or protobuf, gzip optional) |
 | **OpenTelemetry gRPC** | `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317` | Traces, logs, metrics (OTLP gRPC `Export` RPCs) |
@@ -83,7 +83,7 @@ Do not send gRPC to `:4318`. Use `:4317`, or set `OTEL_EXPORTER_OTLP_PROTOCOL=ht
 
 ### Sentry
 
-Point any Sentry SDK at localtrace. Public key and project id are ignored (`1` is the documented default — SDKs typically require a numeric project id).
+Point any Sentry SDK at LocalTrace. Public key and project id are ignored (`1` is the documented default — SDKs typically require a numeric project id).
 
 ```js
 Sentry.init({ dsn: "http://local@127.0.0.1:4318/1" })
@@ -186,7 +186,7 @@ Prompts: `investigate_trace`, `debug_errors`, `find_slow`.
 ```
 agent writes a handler
     → you (or the agent) hit the endpoint
-    → telemetry lands in localtrace
+    → telemetry lands in LocalTrace
     → agent calls list_traces / get_trace / get_trace_sql
     → agent sees the slow query, the 500, the missing span
     → agent fixes the code
@@ -202,7 +202,7 @@ That loop is the product.
 ```bash
 docker run --rm -p 4318:4318 -p 4317:4317 \
   -v localtrace-data:/app/data \
-  ghcr.io/skaznowiecki/localtrace:latest
+  ghcr.io/skaznowiecki/localtrace:0.4.0
 ```
 
 Open [http://localhost:4318](http://localhost:4318). UI, OTLP/HTTP, Sentry, Datadog, and MCP share port `4318`. OTLP/gRPC is `:4317`. Data lives in the `localtrace-data` volume.

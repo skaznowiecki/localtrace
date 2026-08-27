@@ -59,7 +59,7 @@ function httpLine(props: TraceDebugTarget): string | null {
 
 function preamble(kind: "trace" | "log"): string {
   return [
-    `Debug this localtrace ${kind} via the localtrace MCP (${MCP_URL}).`,
+    `Debug this LocalTrace ${kind} via the LocalTrace MCP (${MCP_URL}).`,
     "Do not invent telemetry — fetch it with the tools below.",
   ].join("\n")
 }

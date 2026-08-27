@@ -1,4 +1,4 @@
-# localtrace development commands
+# LocalTrace development commands
 
 default:
     @just --list
